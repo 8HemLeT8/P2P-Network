@@ -3,6 +3,42 @@
 #include <string.h>
 #include <stdlib.h>
 
+int parse_check_run(Node *node, char *input)
+{
+    bool success = true;
+    char *chunk = strtok(input, COMMA);
+    if (strcmp(chunk, "setid"))
+    {
+        success = check_setid(node, input);
+        if (!success)
+        {
+            return -1;
+        }
+    }
+    else if (strcmp(chunk, "connect"))
+    {
+        success = check_connect(node, input);
+        if (!success)
+        {
+            return -1;
+        }
+    }
+    else if (strcmp(chunk, "send"))
+    {
+        success = check_send(node, input);
+        if (!success)
+        {
+            return -1;
+        }
+    }
+
+    while (chunk != NULL)
+    {
+        printf("%s\n", chunk);
+        chunk = strtok(NULL, COMMA);
+    }
+}
+
 bool check_setid(Node *node, char *string)
 {
     strtok(string, COMMA); //ignore the function
@@ -11,7 +47,7 @@ bool check_setid(Node *node, char *string)
     {
         return false;
     }
-    //setid(id);
+    NODE_setid(node, id);
     printf("id: %d\n", id);
 }
 bool check_connect(Node *node, char *string)
@@ -50,7 +86,7 @@ bool check_route(Node *node, char *string)
     {
         return false;
     }
-    Node_route(node, id);
+    NODE_route(node, id);
 }
 // bool check_peers(char *string);
 
