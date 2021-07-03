@@ -5,7 +5,6 @@
 
 int parse_check_run(Node *node, char *input)
 {
-    // printf("%s, %p ", node, node);
     if (node == NULL || input == NULL)
     {
         perror("NULL ARGS IN parse_check_run");
@@ -13,8 +12,6 @@ int parse_check_run(Node *node, char *input)
     }
     bool success = true;
     char *chunk = strtok(input, COMMA);
-    // printf("1st chunk is %s %p %p\n",chunk, chunk, input);
-
     if (chunk == NULL) // if there is no comma in the input
     {
         goto Exit;
@@ -22,7 +19,6 @@ int parse_check_run(Node *node, char *input)
     if (strcmp(chunk, "setid") == 0)
     {
         success = check_setid(node, chunk);
-        printf("1\n");
         if (!success)
         {
             return -1;
@@ -30,7 +26,9 @@ int parse_check_run(Node *node, char *input)
     }
     else if (strcmp(chunk, "connect") == 0)
     {
-        success = check_connect(node, input);
+        printf("debug 0\n");
+
+        success = check_connect(node, chunk);
         if (!success)
         {
             return -1;
@@ -86,24 +84,27 @@ bool check_connect(Node *node, char *string)
         perror("NULL ARGS IN check_connect");
         goto Exit;
     }
-    strtok(NULL, COMMA); //ignore the function
     struct sockaddr_in sa;
     char *ip = {0};
     int ret = 0;
     uint32_t port = 0;
     bool success = false;
 
-    ip = strtok(string, COLON);
+    ip = strtok(NULL, COLON);
     if (ip == NULL)
     {
         return false;
     }
-    port = atoi(strtok(NULL, COLON));
-    printf("ip: %s ... port: %d \n", ip, port);
+    char *port_str = strtok(NULL, COLON);
+    if (port_str == NULL)
+        return false;
+    port = atoi(port_str);
+    printf("ip: %s | port: %d \n", ip, port);
     success = NODE_connect(node, ip, port);
 Exit:
     return success;
 }
+
 bool check_send(Node *node, char *string)
 {
     if (node == NULL || string == NULL)

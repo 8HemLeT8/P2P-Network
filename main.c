@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "parser.h"
-#include "configuration.h"
+#include "Configuration/configuration.h"
 
 int main()
 {

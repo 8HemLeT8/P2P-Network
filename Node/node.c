@@ -1,7 +1,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "../configuration.h"
+#include "../Configuration/configuration.h"
 #include "node.h"
 bool NODE_init(Node *node, uint32_t port)
 {
@@ -19,7 +19,6 @@ bool NODE_init(Node *node, uint32_t port)
         return -1;
     }
 
-    printf("port: %d\n", port);
     node->sock = sock;
     struct sockaddr_in servaddr;
     servaddr.sin_family = AF_INET;
@@ -39,6 +38,7 @@ bool NODE_init(Node *node, uint32_t port)
         printf("Listen() failed. Node ID: %d\n", node->id);
         exit(0);
     }
+    printf("port: %d is listening..\n", port);
 }
 
 bool NODE_setid(Node *node, int32_t id)
@@ -72,24 +72,45 @@ static bool node_init(Node *node)
 
 bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 {
+    printf("debug 3\n");
     if (src_node == NULL || dst_ip == NULL)
     {
         perror("NULL args");
         return false;
     }
-    // Node *new = node->neighbors[node->neighbors_count++];
+
+    int src_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (src_sockfd == -1)
+    {
+        printf("socket creation failed...\n");
+        exit(0);
+    }
+
+    src_node->neighbors_count++;
+    src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
+    short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
+    // src_node->neighbors[src_node->neighbors_count-1].id = NODE_get_by_port
+    *src_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (*src_sock_fd == -1)
+    {
+        printf("socket creation failed...\n");
+        exit(0);
+    }
+
     Node dst_node;
     struct sockaddr_in dst;
 
     // inet_pton(AF_INET, dst_ip, &(dst_node.sock.sin_addr));
     dst.sin_addr.s_addr = inet_addr(dst_ip);
     dst.sin_port = htons(dst_port);
+
     dst.sin_family = AF_INET;
-    int8_t ret = connect(src_node->sock, (struct sockaddr *)&dst, sizeof(dst));
+    int8_t ret = connect(*src_sock_fd, (struct sockaddr *)&dst, sizeof(dst));
     if (ret == -1)
     {
-        perror("Error in connect");
+        perror("Error in connect\n");
     }
+    printf("Connected successfully!\n");
 }
 
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)

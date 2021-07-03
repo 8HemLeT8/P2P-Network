@@ -2,12 +2,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <netinet/in.h>
+typedef struct neighbor
+{
+    int32_t id;
+    short connection;
+} Neighbor;
+
 typedef struct node
 {
     int id;
     short sock;
     // struct node neighbors[MAX_NEIGHBORS];
-    struct node *neighbors;
+    Neighbor *neighbors;
     uint8_t neighbors_count;
 } Node;
 

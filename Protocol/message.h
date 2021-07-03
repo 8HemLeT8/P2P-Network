@@ -21,7 +21,8 @@ typedef struct message
   char payload[492];
 } message;
 
-bool create_connect_message(int8_t src_id, int8_t dst_id, message *msg);
-bool create_ack_message(int8_t src_id, int8_t dst_id, message* msg);
-// bool create_connect_message(int8_t src_id, int8_t dst_id);
-// bool create_connect_message(int8_t src_id, int8_t dst_id);
+bool create_ack_message(int32_t src_id, int32_t dst_id, message* msg);
+bool create_nack_message(int32_t src_id, int32_t dst_id);
+bool create_connect_message(int32_t src_id, int32_t dst_id, message *msg);
+bool create_discover_message(int32_t src_id, int32_t dst_id);
+bool create_route_message(int32_t src_id, int32_t dst_id);
