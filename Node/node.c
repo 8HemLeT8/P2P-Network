@@ -5,6 +5,13 @@
 #include "node.h"
 bool NODE_init(Node *node, uint32_t port)
 {
+    if (node == NULL)
+    {
+        perror("NULL args");
+        return false;
+    }
+
+    node->id = port;
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
     {
@@ -36,6 +43,12 @@ bool NODE_init(Node *node, uint32_t port)
 
 bool NODE_setid(Node *node, int32_t id)
 {
+    if (node == NULL)
+    {
+        perror("NULL args");
+        return false;
+    }
+
     node->id = id;
     current_id = id;
     return true;
@@ -43,6 +56,11 @@ bool NODE_setid(Node *node, int32_t id)
 
 static bool node_init(Node *node)
 {
+    if (node == NULL)
+    {
+        perror("NULL args");
+        return false;
+    }
     node->sock = socket(AF_INET, SOCK_STREAM, 0);
     if (node->sock == -1)
     {
@@ -54,6 +72,11 @@ static bool node_init(Node *node)
 
 bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 {
+    if (src_node == NULL || dst_ip == NULL)
+    {
+        perror("NULL args");
+        return false;
+    }
     // Node *new = node->neighbors[node->neighbors_count++];
     Node dst_node;
     struct sockaddr_in dst;
@@ -71,16 +94,27 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)
 {
+    if (node == NULL || message == NULL)
+    {
+        perror("NULL args");
+        return false;
+    }
     int sent_len = send(node->sock, message, len, 0);
 }
 
-Node *NODE_get_by_id(Node *nodes, int8_t id)
+Node *NODE_get_by_id(Node *nodes, int32_t id)
 {
+    if (nodes == NULL)
+    {
+        perror("NULL args in NODE_get_by_id\n");
+        goto Exit;
+    }
     for (size_t i = 0; i < NUMBER_OF_NODES; i++)
     {
         if (nodes[i].id == id)
             return &nodes[i];
     }
+Exit:
     return NULL;
 }
 

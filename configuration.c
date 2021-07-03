@@ -1,3 +1,3 @@
 #include "configuration.h"
 
-int8_t current_id = -1;
+int32_t current_id = 6965;

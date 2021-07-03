@@ -7,4 +7,4 @@
 #define NODE_FIRST_PORT (6965)
 #define NODES_IP ("127.0.0.1")
 
-extern int8_t current_id;
+extern int32_t current_id;

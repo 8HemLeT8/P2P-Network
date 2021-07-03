@@ -16,4 +16,4 @@ bool NODE_setid(Node *node, int32_t id);
 bool NODE_connect(Node *node, char *ip, uint32_t port);
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *message);
 bool NODE_route(Node *node, int32_t id);
-Node *NODE_get_by_id(Node *nodes, int8_t id);
+Node *NODE_get_by_id(Node *nodes, int32_t id);
