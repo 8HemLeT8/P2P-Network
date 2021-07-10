@@ -12,7 +12,6 @@ typedef struct node
 {
     int id;
     short sock;
-    // struct node neighbors[MAX_NEIGHBORS];
     Neighbor *neighbors;
     uint8_t neighbors_count;
 } Node;

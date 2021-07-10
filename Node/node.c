@@ -10,8 +10,10 @@ bool NODE_init(Node *node, uint32_t port)
         perror("NULL args");
         return false;
     }
-
+    node->neighbors_count = 0;
+    node->neighbors = NULL;
     node->id = port;
+
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
     {
@@ -48,27 +50,25 @@ bool NODE_setid(Node *node, int32_t id)
         perror("NULL args");
         return false;
     }
-
-    node->id = id;
     current_id = id;
     return true;
 }
 
-static bool node_init(Node *node)
-{
-    if (node == NULL)
-    {
-        perror("NULL args");
-        return false;
-    }
-    node->sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (node->sock == -1)
-    {
-        perror("Failed creating a sock");
-        return false;
-    }
-    return true;
-}
+// static bool node_init(Node *node)
+// {
+//     if (node == NULL)
+//     {
+//         perror("NULL args");
+//         return false;
+//     }
+//     node->sock = socket(AF_INET, SOCK_STREAM, 0);
+//     if (node->sock == -1)
+//     {
+//         perror("Failed creating a sock");
+//         return false;
+//     }
+//     return true;
+// }
 
 bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 {
@@ -89,6 +89,7 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     src_node->neighbors_count++;
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
+
     // src_node->neighbors[src_node->neighbors_count-1].id = NODE_get_by_port
     *src_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (*src_sock_fd == -1)
@@ -97,9 +98,7 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         exit(0);
     }
 
-    Node dst_node;
     struct sockaddr_in dst;
-
     // inet_pton(AF_INET, dst_ip, &(dst_node.sock.sin_addr));
     dst.sin_addr.s_addr = inet_addr(dst_ip);
     dst.sin_port = htons(dst_port);
@@ -109,8 +108,9 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     if (ret == -1)
     {
         perror("Error in connect\n");
+        return false;
     }
-    printf("Connected successfully!\n");
+    printf("%d -> (%s,%d) Connected successfully!\n", src_node->id, dst_ip, dst_port);
 }
 
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)
