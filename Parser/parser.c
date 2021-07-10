@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-int parse_check_run(Node *node, char *input)
+int32_t parse_check_run(Node *node, char *input)
 {
     if (node == NULL || input == NULL)
     {
@@ -26,8 +26,6 @@ int parse_check_run(Node *node, char *input)
     }
     else if (strcmp(chunk, "connect") == 0)
     {
-        printf("debug 0\n");
-
         success = check_connect(node, chunk);
         if (!success)
         {
@@ -67,7 +65,7 @@ bool check_setid(Node *node, char *string)
     }
     bool success = false;
     char *chr = strtok(NULL, COMMA); //ignore the function
-    int id = atoi(chr);
+    int32_t id = atoi(chr);
     if (NULL != strtok(NULL, COMMA))
     {
         return false;
@@ -86,7 +84,7 @@ bool check_connect(Node *node, char *string)
     }
     struct sockaddr_in sa;
     char *ip = {0};
-    int ret = 0;
+    int32_t ret = 0;
     uint32_t port = 0;
     bool success = false;
 
@@ -113,8 +111,8 @@ bool check_send(Node *node, char *string)
         goto Exit;
     }
     bool success = false;
-    strtok(NULL, COMMA); //ignore the function
-    int id = atoi(strtok(NULL, COMMA));
+    // strtok(NULL, COMMA); //ignore the function
+    int32_t id = atoi(strtok(NULL, COMMA));
     uint32_t len = atoi(strtok(NULL, COMMA));
     char *message = strtok(NULL, COMMA);
     if (NULL != strtok(NULL, COMMA))
@@ -133,7 +131,7 @@ bool check_route(Node *node, char *string)
         goto Exit;
     }
     bool success = false;
-    int id = atoi(string);
+    int32_t id = atoi(string);
     if (NULL != strtok(NULL, COMMA))
     {
         return false;
@@ -144,7 +142,7 @@ Exit:
 }
 // bool check_peers(char *string);
 
-// int main()
+// int32_t main()
 // {
 //     printf("temp main\n");
 //     char test[15] = "127.0.0.1:1337";

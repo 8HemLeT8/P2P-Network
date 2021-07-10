@@ -3,18 +3,19 @@
 #include <stdio.h>
 #include "../Configuration/configuration.h"
 #include "node.h"
+#include "../Protocol/message.h"
 bool NODE_init(Node *node, uint32_t port)
 {
     if (node == NULL)
     {
-        perror("NULL args");
+        perror("NULL args in NODE_init");
         return false;
     }
     node->neighbors_count = 0;
     node->neighbors = NULL;
     node->id = port;
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int32_t sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
     {
         printf("socket creation failed...\n");
@@ -47,13 +48,27 @@ bool NODE_setid(Node *node, int32_t id)
 {
     if (node == NULL)
     {
-        perror("NULL args");
+        perror("NULL args in NODE_setid");
         return false;
     }
     current_id = id;
     return true;
 }
-
+bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id)
+{
+    if (nodes == NULL)
+    {
+        perror("NULL args in Neighbor_exists\n");
+        goto Exit;
+    }
+    for (size_t i = 0; i < size; i++)
+    {
+        if (nodes[i].id == id)
+            return true;
+    }
+Exit:
+    return false;
+}
 // static bool node_init(Node *node)
 // {
 //     if (node == NULL)
@@ -72,20 +87,19 @@ bool NODE_setid(Node *node, int32_t id)
 
 bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 {
-    printf("debug 3\n");
     if (src_node == NULL || dst_ip == NULL)
     {
-        perror("NULL args");
+        perror("NULL args in NODE_connect");
         return false;
     }
 
-    int src_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int32_t src_sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (src_sockfd == -1)
     {
         printf("socket creation failed...\n");
         exit(0);
     }
-
+    // if(Neighbor_exists(src_node->neighbors, src_node->neighbors_count, ))
     src_node->neighbors_count++;
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
@@ -110,6 +124,7 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         perror("Error in connect\n");
         return false;
     }
+    
     printf("%d -> (%s,%d) Connected successfully!\n", src_node->id, dst_ip, dst_port);
 }
 
@@ -117,10 +132,32 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)
 {
     if (node == NULL || message == NULL)
     {
-        perror("NULL args");
+        perror("NULL args in NODE_send");
         return false;
     }
-    int sent_len = send(node->sock, message, len, 0);
+    short dst_sock = Neghibor_get_sock_by_id(node->neighbors, id);
+    if (dst_sock == -1)
+    {
+        perror("No such neighbor!");
+        return false;
+    }
+    int32_t sent_len = send(dst_sock, message, len, 0);
+}
+
+short Neghibor_get_sock_by_id(Neighbor *nodes, int32_t id)
+{
+    if (nodes == NULL)
+    {
+        perror("NULL args in Neghibor_get_sock_by_id\n");
+        goto Exit;
+    }
+    for (size_t i = 0; i < NUMBER_OF_NODES; i++)
+    {
+        if (nodes[i].id == id)
+            return nodes[i].connection;
+    }
+Exit:
+    return -1;
 }
 
 Node *NODE_get_by_id(Node *nodes, int32_t id)
@@ -142,7 +179,7 @@ Exit:
 bool NODE_route(Node *node, int32_t id) {}
 
 /****
-int main()
+int32_t main()
 {
     //remove this
 

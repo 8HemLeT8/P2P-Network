@@ -10,20 +10,19 @@
 #define FALSE (0)
 
 static fd_set rfds, rfds_copy;
-static int max_fd = 0;
-static int initialized = FALSE;
-static int *alloced_fds = NULL;
-static int alloced_fds_num = 0;
+static int32_t max_fd = 0;
+static int32_t initialized = FALSE;
+int32_t *alloced_fds = NULL;
+int32_t alloced_fds_num = 0;
 
-
-static int add_fd_to_monitoring_internal(const unsigned int fd)
+static int32_t add_fd_to_monitoring_internal(const unsigned int fd)
 {
-  int *tmp_alloc;
-  tmp_alloc = realloc(alloced_fds, sizeof(int)*(alloced_fds_num+1));
+  int32_t *tmp_alloc;
+  tmp_alloc = realloc(alloced_fds, sizeof(int32_t) * (alloced_fds_num + 1));
   if (tmp_alloc == NULL)
     return -1;
   alloced_fds = tmp_alloc;
-  alloced_fds[alloced_fds_num++]=fd;
+  alloced_fds[alloced_fds_num++] = fd;
   FD_SET(fd, &rfds_copy);
   if (max_fd < fd)
     max_fd = fd;
@@ -31,7 +30,7 @@ static int add_fd_to_monitoring_internal(const unsigned int fd)
   return 0;
 }
 
-int init()
+int32_t init()
 {
   FD_ZERO(&rfds_copy);
   if (add_fd_to_monitoring_internal(0) < 0)
@@ -44,19 +43,19 @@ int add_fd_to_monitoring(const unsigned int fd)
 {
   if (!initialized)
     init();
-  if (fd>0)
+  if (fd > 0)
     return add_fd_to_monitoring_internal(fd);
   return 0;
 }
 
-int wait_for_input()
+int32_t wait_for_input()
 {
-  int i, retval;
+  int32_t i, retval;
   memcpy(&rfds, &rfds_copy, sizeof(rfds_copy));
-  retval = select(max_fd+1, &rfds, NULL, NULL, NULL);
+  retval = select(max_fd + 1, &rfds, NULL, NULL, NULL);
   if (retval > 0)
   {
-    for (i=0; i<alloced_fds_num; ++i)
+    for (i = 0; i < alloced_fds_num; ++i)
     {
       if (FD_ISSET(alloced_fds[i], &rfds))
         return alloced_fds[i];
