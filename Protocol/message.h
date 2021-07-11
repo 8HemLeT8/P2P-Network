@@ -22,13 +22,9 @@ typedef struct message
   char payload[492];
 } message;
 
-// bool create_ack_message(int32_t src_id, int32_t dst_id, message* msg);
-// bool create_nack_message(int32_t src_id, int32_t dst_id);
-// bool create_connect_message(int32_t src_id, int32_t dst_id, message *msg);
-// bool create_discover_message(int32_t src_id, int32_t dst_id);
-// bool create_route_message(int32_t src_id, int32_t dst_id);
 bool send_message(int32_t sock, message *msg);
-bool send_connect_message(short sock, uint32_t src_node_id, int32_t src_id);
+bool send_connect_message(short sock, uint32_t src_node_id);
 bool send_ack_message(short sock, int32_t src_id, int32_t dst_id, int32_t payload);
 bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, int32_t payload);
-bool message_parse(Node *node, char *buffer, size_t len);
+bool send_route_message(); //TODO
+bool message_parse(Node *node, char *buffer, size_t len, int32_t sfrom_fd);

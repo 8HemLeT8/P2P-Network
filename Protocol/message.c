@@ -9,10 +9,10 @@ static uint32_t id = 0;
 static void debug_print_message(message *msg)
 {
     printf("~~~~~ DEBUG ~~~~~\n");
-    printf("dst id: %d\n", msg->dst_id);
-    printf("func id: %d\n", msg->func_id);
     printf("msg id: %d\n", msg->msg_id);
     printf("src id: %d\n", msg->src_id);
+    printf("dst id: %d\n", msg->dst_id);
+    printf("func id: %d\n", msg->func_id);
     printf("trailing msg: %d\n", msg->trailing_msg);
     if (msg->func_id == FUNC_ID_ACK || msg->func_id == FUNC_ID_NACK)
     {
@@ -74,7 +74,7 @@ bool create_nack_message(int32_t src_id, int32_t dst_id, int32_t payload, messag
 //     return true;
 // }
 
-bool send_connect_message(short sock, uint32_t src_node_id, int32_t src_id)
+bool send_connect_message(short sock, uint32_t src_node_id)
 {
     message msg;
     create_connect_message(src_node_id, 0, &msg);
@@ -95,7 +95,7 @@ bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, in
     send(sock, &msg, sizeof(message), 0);
 }
 
-static bool parse_ack(Node *node, message *msg)
+static bool parse_ack(Node *node, message *msg, int32_t from_fd)
 {
     if (node == NULL || msg == NULL)
     {
@@ -105,6 +105,16 @@ static bool parse_ack(Node *node, message *msg)
 
     if (node->id == msg->dst_id)
     {
+        int32_t n = Neighbor_get_index_by_ip_port(node->neighbors, node->neighbors_count, from_fd);
+        if (n == -1)
+        {
+            return false;
+        }
+        else
+        {
+            node->neighbors[n].id = msg->src_id;
+            return true;
+        }
     }
 }
 
@@ -139,7 +149,7 @@ static bool parse_route(Node *node, message *msg)
         perror("NULL args in parse_ack");
     }
 }
-bool message_parse(Node *node, char *buffer, size_t len)
+bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
 {
     printf("debug 5\n");
     message *msg = (message *)buffer;
@@ -148,7 +158,7 @@ bool message_parse(Node *node, char *buffer, size_t len)
     {
     case FUNC_ID_ACK:
         printf("Got an ack message\n");
-        bool success = parse_ack(node, msg);
+        bool success = parse_ack(node, msg, from_fd);
         if (!success)
         {
             perror("Failed parsing ack");
@@ -157,7 +167,7 @@ bool message_parse(Node *node, char *buffer, size_t len)
         break;
     case FUNC_ID_NACK:
         printf("Got an nack message\n");
-        success = parse_ack(node, msg);
+        success = parse_ack(node, msg, from_fd);
         if (!success)
         {
             perror("Failed parsing ack");

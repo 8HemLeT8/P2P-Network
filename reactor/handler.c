@@ -47,9 +47,7 @@ bool handle(int32_t fd, Node *node)
     default:
         printf("debug 2\n");
         size_t len = recv(fd, buffer, sizeof(message), 0);
-        // printf("%d got: %s\n", fd, buffer);
-        // parse_check_run(buffer);
-        message_parse(node, buffer, len);
+        message_parse(node, buffer, len, fd);
         break;
     }
 }

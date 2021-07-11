@@ -105,7 +105,8 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     src_node->neighbors_count++;
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
-
+    src_node->neighbors[src_node->neighbors_count - 1].ip_addr = inet_addr(dst_ip);
+    src_node->neighbors[src_node->neighbors_count - 1].port = dst_port;
     // src_node->neighbors[src_node->neighbors_count-1].id = NODE_get_by_port
     *src_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (*src_sock_fd == -1)
@@ -127,14 +128,13 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         return false;
     }
     add_fd_to_monitoring(*src_sock_fd);
-
+    send_connect_message(*src_sock_fd, src_node->id);
     /*
 
     ADD HERE THE PROTOCOL LEVELS FROM INSTRUCTIONS:
 
 
     */
-
 }
 
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)
@@ -186,6 +186,23 @@ Exit:
 }
 
 bool NODE_route(Node *node, int32_t id) {}
+
+int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t fd)
+{
+    struct sockaddr_in addr;
+    socklen_t addr_size = sizeof(struct sockaddr_in);
+    int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size);
+    int32_t port = ntohs(addr.sin_port);
+
+    for (int i = 0; i < len; i++)
+    {
+        if (neghibors[i].ip_addr == addr.sin_addr.s_addr && neghibors[i].port == ntohs(addr.sin_port))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
 
 /****
 int32_t main()
