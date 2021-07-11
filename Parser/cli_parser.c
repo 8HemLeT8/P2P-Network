@@ -1,4 +1,4 @@
-#include "parser.h"
+#include "cli_parser.h"
 #include <arpa/inet.h>
 #include <string.h>
 #include <stdlib.h>
@@ -97,7 +97,7 @@ bool check_connect(Node *node, char *string)
     if (port_str == NULL)
         return false;
     port = atoi(port_str);
-    printf("ip: %s | port: %d \n", ip, port);
+    // printf("ip: %s | port: %d \n", ip, port);
     success = NODE_connect(node, ip, port);
 Exit:
     return success;

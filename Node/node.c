@@ -4,6 +4,8 @@
 #include "../Configuration/configuration.h"
 #include "node.h"
 #include "../Protocol/message.h"
+#include "../Reactor/select.h"
+
 bool NODE_init(Node *node, uint32_t port)
 {
     if (node == NULL)
@@ -124,8 +126,15 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         perror("Error in connect\n");
         return false;
     }
-    
-    printf("%d -> (%s,%d) Connected successfully!\n", src_node->id, dst_ip, dst_port);
+    add_fd_to_monitoring(*src_sock_fd);
+
+    /*
+
+    ADD HERE THE PROTOCOL LEVELS FROM INSTRUCTIONS:
+
+
+    */
+
 }
 
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)

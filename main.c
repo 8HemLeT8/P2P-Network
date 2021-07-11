@@ -1,15 +1,21 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
+#include <signal.h>
 #include <unistd.h>
-#include "Parser/parser.h"
+#include <stdbool.h>
+#include "Parser/cli_parser.h"
 #include "Reactor/select.h"
 #include "Configuration/configuration.h"
 #include "Reactor/handler.h"
-
+void clean(int temp)
+{
+    close(LISTENING_FD);
+    close(6965);
+    close(6966);
+}
 int32_t main()
 {
-    // char buffer[200];
+    signal(SIGINT, clean);
     Node nodes[NUMBER_OF_NODES];
     /* init nodes */
     for (int32_t i = 0; i < NUMBER_OF_NODES; i++)
@@ -39,5 +45,4 @@ int32_t main()
     close(LISTENING_FD);
     close(6965);
     close(6966);
-
 }

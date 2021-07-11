@@ -3,4 +3,4 @@ OUTPUT = run
 all: output
 
 output:
-	gcc main.c Node/node.c Configuration/configuration.c Parser/parser.c Reactor/select.c Reactor/handler.c Protocol/message.c -o ${OUTPUT}
+	gcc -g main.c Node/node.c Configuration/configuration.c Parser/cli_parser.c Reactor/select.c Reactor/handler.c Protocol/message.c -o ${OUTPUT}
