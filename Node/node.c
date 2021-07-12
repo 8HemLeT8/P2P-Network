@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include "../Configuration/configuration.h"
 #include "node.h"
@@ -36,7 +37,6 @@ bool NODE_init(Node *node, uint32_t port)
         printf("socket bind failed. Node ID: %d\n", node->id);
         exit(0);
     }
-
     // Now server is ready to listen
     if ((listen(node->sock, NUMBER_OF_NODES)) != 0)
     {
@@ -86,6 +86,14 @@ Exit:
 //     }
 //     return true;
 // }
+bool NODE_add_neighbor(Node *node, int32_t id, int32_t fd)
+{
+    node->neighbors_count++;
+    node->neighbors = realloc(node->neighbors, node->neighbors_count * sizeof(Neighbor));
+    node->neighbors[node->neighbors_count - 1].id = id;
+    /*check if I can add here ip port set as well*/
+    return true;
+}
 
 bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 {
@@ -137,30 +145,49 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     */
 }
 
-bool NODE_send(Node *node, int32_t id, uint32_t len, char *message)
+bool NODE_send(Node *node, int32_t id, uint32_t len, char *str)
 {
-    if (node == NULL || message == NULL)
+    if (node == NULL || str == NULL)
     {
         perror("NULL args in NODE_send");
         return false;
     }
-    short dst_sock = Neghibor_get_sock_by_id(node->neighbors, id);
-    if (dst_sock == -1)
+    short dst_sock = Neghibor_get_sock_by_id(node->neighbors, node->neighbors_count, id);
+    if (dst_sock == -1) // routing...
     {
-        perror("No such neighbor!");
+        if (node->neighbors_count > 0)
+        {
+            printf("No such neighbor, discovering...\n");
+
+            message *msg = malloc(sizeof(message));
+            memcpy(msg, str, len);
+            bool res = message_check_format(msg);
+            if (!res)
+            {
+                perror("BAD MESSAGE FORMAT");
+                return false;
+            }
+            free(msg);
+            msg = (message *)str;
+            if (msg->dst_id == node->id)
+            {
+                // send_ack_message(Neghibor_get_sock_by_id(   ))
+            }
+        }
+        perror("No neghibors found!\n");
         return false;
     }
-    int32_t sent_len = send(dst_sock, message, len, 0);
+    int32_t sent_len = send(dst_sock, str, len, 0);
 }
 
-short Neghibor_get_sock_by_id(Neighbor *nodes, int32_t id)
+short Neghibor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id)
 {
     if (nodes == NULL)
     {
         perror("NULL args in Neghibor_get_sock_by_id\n");
         goto Exit;
     }
-    for (size_t i = 0; i < NUMBER_OF_NODES; i++)
+    for (size_t i = 0; i < size; i++)
     {
         if (nodes[i].id == id)
             return nodes[i].connection;

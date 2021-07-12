@@ -6,6 +6,22 @@
 
 static uint32_t id = 0;
 
+bool message_check_format(message *msg)
+{
+    if (msg->dst_id < 0)
+        return false;
+    if (msg->src_id < 0)
+        return false;
+    if (msg->func_id < 0)
+        return false;
+    if (msg->trailing_msg < 0)
+        return false;
+    // if (msg->payload < 0)
+    //     return false;
+
+    return true;
+}
+
 static void debug_print_message(message *msg)
 {
     printf("~~~~~ DEBUG ~~~~~\n");
@@ -53,26 +69,11 @@ bool create_nack_message(int32_t src_id, int32_t dst_id, int32_t payload, messag
     msg->trailing_msg = 0;
     msg->msg_id = id++;
     msg->func_id = FUNC_ID_NACK;
-    memcpy(msg->payload, "KAKI", 4);
+    memset(msg->payload, 0, sizeof(msg->payload));
+
+    memcpy(&msg->payload[0], &payload, sizeof(int32_t));
     return true;
 }
-
-// bool send_message(int32_t sock, message *msg)
-// {
-//     if (msg == NULL)
-//     {
-//         perror("NULL ARGS in send_message\n");
-//         return false;
-//     }
-//     printf("sending %s\n", msg->payload);
-//     int32_t retval = send(sock, msg, 10, 0); // CHANGE THE MAGICs
-//     if (retval == -1)
-//     {
-//         perror("send failed!\n");
-//         return false;
-//     }
-//     return true;
-// }
 
 bool send_connect_message(short sock, uint32_t src_node_id)
 {
@@ -118,7 +119,7 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
     }
 }
 
-static bool parse_nack(Node *node, message *msg)
+static bool parse_nack(Node *node, message *msg, int32_t fd)
 {
     if (node == NULL || msg == NULL)
     {
@@ -126,12 +127,17 @@ static bool parse_nack(Node *node, message *msg)
     }
 }
 
-static bool parse_connect(Node *node, message *msg)
+static bool parse_connect(Node *node, message *msg, int32_t fd)
 {
     if (node == NULL || msg == NULL)
     {
         perror("NULL args in parse_ack");
+        return false;
     }
+    if (!NODE_add_neighbor(node, msg->src_id, fd))
+        return false;
+
+    return true;
 }
 
 static bool parse_discover(Node *node, message *msg)
@@ -153,11 +159,11 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
 {
     printf("debug 5\n");
     message *msg = (message *)buffer;
-    debug_print_message(msg);
+    // debug_print_message(msg);
     switch (msg->func_id)
     {
     case FUNC_ID_ACK:
-        printf("Got an ack message\n");
+        printf("%d Got an ack message\n", node->id);
         bool success = parse_ack(node, msg, from_fd);
         if (!success)
         {
@@ -167,19 +173,19 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         break;
     case FUNC_ID_NACK:
         printf("Got an nack message\n");
-        success = parse_ack(node, msg, from_fd);
+        success = parse_nack(node, msg, from_fd);
         if (!success)
         {
-            perror("Failed parsing ack");
+            perror("Failed parsing nack");
             return false;
         }
         break;
     case FUNC_ID_CONNECT:
-        printf("Got a connect message\n");
-        success = parse_connect(node, msg);
+        printf("%d Got a connect message\n", node->id);
+        success = parse_connect(node, msg, from_fd);
         if (!success)
         {
-            perror("Failed parsing ack");
+            perror("Failed parsing connect");
             return false;
         }
         break;
@@ -188,7 +194,7 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         success = parse_discover(node, msg);
         if (!success)
         {
-            perror("Failed parsing ack");
+            perror("Failed parsing discover");
             return false;
         }
         break;
@@ -197,7 +203,7 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         success = parse_route(node, msg);
         if (!success)
         {
-            perror("Failed parsing ack");
+            perror("Failed parsing route");
             return false;
         }
         break;
