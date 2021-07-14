@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <stdio.h>
 #include "../Configuration/configuration.h"
 #include "node.h"
@@ -54,6 +55,7 @@ bool NODE_setid(Node *node, int32_t id)
         return false;
     }
     current_id = id;
+    node->id = id;
     return true;
 }
 bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id)
@@ -212,7 +214,31 @@ Exit:
     return NULL;
 }
 
-bool NODE_route(Node *node, int32_t id) {}
+bool NODE_route(Node *node, int32_t id)
+{
+    if (node == NULL)
+    {
+        perror("NULL args in NODE_route\n");
+        goto Exit;
+    }
+    if (node->neighbors_count < 1)
+    {
+        perror("Cant route... no neighbors\n");
+        goto Exit;
+    }
+    for (int i = 0; i < node->neighbors_count; i++)
+    {
+        bool ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, id);
+        if (!ret)
+        {
+            perror("Failed in sending discover msg\n");
+            goto Exit;
+        }
+    }
+    return true;
+Exit:
+    return false;
+}
 
 int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t fd)
 {

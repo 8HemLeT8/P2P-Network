@@ -40,6 +40,14 @@ int32_t parse_check_run(Node *node, char *input)
             return -1;
         }
     }
+    else if (strcmp(chunk, "route") == 0)
+    {
+        success = check_route(node, input);
+        if (!success)
+        {
+            return -1;
+        }
+    }
     else
     {
         goto Exit;
@@ -47,7 +55,7 @@ int32_t parse_check_run(Node *node, char *input)
 
     while (chunk != NULL)
     {
-        printf("%s\n", chunk);
+        // printf("%s\n", chunk);
         chunk = strtok(NULL, COMMA);
     }
     return 1;
@@ -71,7 +79,6 @@ bool check_setid(Node *node, char *string)
         return false;
     }
     return NODE_setid(node, id);
-    printf("id: %d\n", id);
 Exit:
     return success;
 }
@@ -131,7 +138,7 @@ bool check_route(Node *node, char *string)
         goto Exit;
     }
     bool success = false;
-    int32_t id = atoi(string);
+    int32_t id = atoi(strtok(NULL, COMMA));
     if (NULL != strtok(NULL, COMMA))
     {
         return false;

@@ -26,11 +26,10 @@ int32_t main()
     printf("All nodes are initiated\n");
 
     printf("current node is: %d\n", current_id);
-    printf("Please enter your command: \n");
+    printf("Please enter your scommand: \n");
     while (true)
     {
         int32_t ready_fd = wait_for_input();
-        printf("got %d fd as ready to read\n", ready_fd);
         if (ready_fd == -1)
         {
             perror("");

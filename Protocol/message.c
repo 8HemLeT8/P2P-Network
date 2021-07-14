@@ -75,6 +75,18 @@ bool create_nack_message(int32_t src_id, int32_t dst_id, int32_t payload, messag
     return true;
 }
 
+bool create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, message *msg)
+{
+    msg->src_id = src_id;
+    msg->dst_id = dst_id;
+    msg->trailing_msg = 0; // TODO ??
+    msg->msg_id = id++;
+    msg->func_id = FUNC_ID_NACK;
+    memset(msg->payload, 0, sizeof(msg->payload));
+    memcpy(&msg->payload[0], &target_id, sizeof(int32_t));
+    return true;
+}
+
 bool send_connect_message(short sock, uint32_t src_node_id)
 {
     message msg;
@@ -93,6 +105,13 @@ bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, in
 {
     message msg;
     create_nack_message(src_node_id, current_node, payload, &msg);
+    send(sock, &msg, sizeof(message), 0);
+}
+
+bool send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t target_id)
+{
+    message msg;
+    create_discover_message(src_id, dst_id, target_id, &msg);
     send(sock, &msg, sizeof(message), 0);
 }
 
@@ -144,7 +163,7 @@ static bool parse_discover(Node *node, message *msg)
 {
     if (node == NULL || msg == NULL)
     {
-        perror("NULL args in parse_ack");
+        perror("NULL args in parse_discover");
     }
 }
 
@@ -157,7 +176,6 @@ static bool parse_route(Node *node, message *msg)
 }
 bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
 {
-    printf("debug 5\n");
     message *msg = (message *)buffer;
     // debug_print_message(msg);
     switch (msg->func_id)
