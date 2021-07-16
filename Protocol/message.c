@@ -176,6 +176,14 @@ static bool parse_route(Node *node, message *msg)
 }
 bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
 {
+    if (len == 0)
+    {
+        bool ret = NODE_disconnect_neighbor(node, from_fd);
+    }
+    if (node == NULL || buffer == NULL)
+    {
+        perror("Null args in message_parse\n");
+    }
     message *msg = (message *)buffer;
     // debug_print_message(msg);
     switch (msg->func_id)

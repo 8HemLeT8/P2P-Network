@@ -1,12 +1,13 @@
+#include <unistd.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
 #include "../Configuration/configuration.h"
-#include "node.h"
 #include "../Protocol/message.h"
 #include "../Reactor/select.h"
+#include "node.h"
 
 bool NODE_init(Node *node, uint32_t port)
 {
@@ -44,6 +45,7 @@ bool NODE_init(Node *node, uint32_t port)
         printf("Listen() failed. Node ID: %d\n", node->id);
         exit(0);
     }
+    LISTENING_FD = node->sock;
     printf("port: %d is listening..\n", port);
 }
 
@@ -257,17 +259,48 @@ int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t f
     return -1;
 }
 
-/****
-int32_t main()
+size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 {
-    //remove this
-
-    Node node;
-    node_init(&node);
-    char ip[10] = "127.0.0.1";
-
-    NODE_connect(&node, ip, 1337);
-    NODE_send(&node, 3, 12, "Barel ha man");
+    for (int i = 0; i < node->neighbors_count; i++)
+    {
+        if (node->neighbors[i].connection == fd)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
-***/
+bool NODE_disconnect_neighbor(Node *node, short fd)
+{
+    if (node == NULL)
+    {
+        perror("Null args in NODE_disconnect_neighbor");
+        return false;
+    }
+    int to_rm = NODE_get_neighbor_index_by_fd(node, fd);
+    if (to_rm < 0)
+    {
+        perror("Failed to find neighbor\n");
+        return false;
+    }
+    if ((--node->neighbors_count) <= 0)
+    {
+        free(node->neighbors);
+    }
+    else
+    {
+        Neighbor *temp_arr = (Neighbor *)malloc(node->neighbors_count * sizeof(Neighbor));
+        for (int j = 0; j < to_rm; j++)
+        {
+            memcpy(&temp_arr[j], &node->neighbors[j], sizeof(Neighbor));
+        }
+        for (int k = to_rm + 1; k < node->neighbors_count; k++)
+        {
+            memcpy(&temp_arr[k], &node->neighbors[k], sizeof(Neighbor));
+        }
+        close(node->neighbors[to_rm].connection);
+        free(node->neighbors);
+        node->neighbors = temp_arr;
+    }
+}

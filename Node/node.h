@@ -28,3 +28,4 @@ short Neghibor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id);
 int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t fd);
 bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id);
 bool NODE_add_neighbor(Node *node, int32_t id, int32_t fd);
+bool NODE_disconnect_neighbor(Node* node, short fd);
