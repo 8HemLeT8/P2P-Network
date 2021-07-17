@@ -130,9 +130,9 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     return true;
 }
 
-bool NODE_send(Node *node, int32_t id, uint32_t len, char *str)
+bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
 {
-    if (node == NULL || str == NULL)
+    if (node == NULL || data == NULL)
     {
         perror("NULL args in NODE_send");
         return false;
@@ -145,7 +145,7 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *str)
             printf("No such neighbor, discovering...\n");
 
             message *msg = malloc(sizeof(message));
-            memcpy(msg, str, len);
+            memcpy(msg, data, len);
             bool res = message_check_format(msg);
             if (!res)
             {
@@ -153,7 +153,7 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *str)
                 return false;
             }
             free(msg);
-            msg = (message *)str;
+            msg = (message *)data;
             if (msg->dst_id == node->id)
             {
                 // send_ack_message(Neghibor_get_sock_by_id(   ))
@@ -162,7 +162,16 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *str)
         perror("No neghibors found!\n");
         return false;
     }
-    int32_t sent_len = send(dst_sock, str, len, 0);
+    else
+    {
+        bool ret = send_message(dst_sock, node->id, id, len, data);
+        if (!ret)
+        {
+            perror("Failed in send_message");
+            return false;
+        }
+    }
+    return true;
 }
 
 short Neghibor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id)
@@ -256,7 +265,7 @@ size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 
 bool NODE_disconnect_neighbor(Node *node, short fd)
 {
-/*
+    /*
 ADD HERE REMOVE FROM REACTOR!!!
 */
     if (node == NULL)

@@ -77,16 +77,62 @@ bool create_nack_message(int32_t src_id, int32_t dst_id, int32_t payload, messag
 
 bool create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, message *msg)
 {
+    msg->msg_id = id++;
     msg->src_id = src_id;
     msg->dst_id = dst_id;
     msg->trailing_msg = 0; // TODO ??
-    msg->msg_id = id++;
-    msg->func_id = FUNC_ID_NACK;
+    msg->func_id = FUNC_ID_DISCOVER;
     memset(msg->payload, 0, sizeof(msg->payload));
     memcpy(&msg->payload[0], &target_id, sizeof(int32_t));
     return true;
 }
 
+bool create_send_message(int32_t src_id, int32_t dst_id, char *payload, int32_t len, message *msg)
+{
+    msg->msg_id = id++;
+    msg->src_id = src_id;
+    msg->dst_id = dst_id;
+    msg->trailing_msg = 0; // TODO ??
+    msg->func_id = FUNC_ID_SEND;
+    memset(msg->payload, 0, sizeof(msg->payload));
+    memcpy(msg->payload, payload, len);
+    return true;
+}
+
+bool send_message(short sock, int32_t src_id, int32_t dst_id, size_t len, char *data)
+{
+    message msg;
+    bool ret = create_send_message(src_id, dst_id, data, len, &msg);
+    if (!ret)
+    {
+        perror("Failed creating send message\n");
+        return false;
+    }
+    int32_t sent = send(sock, &msg, sizeof(message), 0);
+    if (sent < 0)
+    {
+        perror("Failed in Send!");
+        return false;
+    }
+    return true;
+}
+
+bool add_myself_to_route(int32_t my_id, message *route_msg)
+{
+    int *pointer = (int *)route_msg->payload; //original message id
+    pointer++;                                //number of routing elements
+    (*pointer)++;                             //add myself to size
+    int32_t num_of_elements = *pointer;
+    for (int i = 0; i < num_of_elements; i++)
+    {
+        pointer++;
+    }
+    *pointer = my_id; //add my id in the last position
+    return true;
+}
+bool create_route_message(int32_t starting_msg_id, int32_t route_size, ...)
+{
+}
 bool send_connect_message(short sock, uint32_t src_node_id)
 {
     message msg;
@@ -205,7 +251,27 @@ static bool parse_route(Node *node, message *msg)
     {
         perror("NULL args in parse_ack");
     }
+    if (msg->dst_id == node->id)
+    {
+    }
+    else
+    {
+        //FIND OUT TO WHAT SOCKET DO I FORWARD THE ROUTE MSG
+
+        // send_route_message(Neghibor_get_sock_by_id())
+    }
 }
+
+static bool parse_send(Node *node, message *msg)
+{
+    if (node == NULL || msg == NULL)
+    {
+        perror("NULL args in parse_ack");
+    }
+    printf("GOT: %s\n", msg->payload);
+    return true;
+}
+
 bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
 {
     if (len == 0)
@@ -262,6 +328,15 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         if (!success)
         {
             perror("Failed parsing route");
+            return false;
+        }
+        break;
+    case FUNC_ID_SEND:
+        printf("Got an SEND message\n");
+        success = parse_send(node, msg);
+        if (!success)
+        {
+            perror("Failed parsing send\n");
             return false;
         }
         break;
