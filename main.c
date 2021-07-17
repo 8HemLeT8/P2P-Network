@@ -10,8 +10,6 @@
 void clean(int temp)
 {
     close(LISTENING_FD);
-    close(6965);
-    close(6966);
 }
 int32_t main()
 {
@@ -37,7 +35,6 @@ int32_t main()
         }
         else
         {
-            printf("ready fd: %d\n",ready_fd);
             handle(ready_fd, NODE_get_by_id(nodes, current_id));
         }
     }

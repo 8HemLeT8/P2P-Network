@@ -75,26 +75,13 @@ bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id)
 Exit:
     return false;
 }
-// static bool node_init(Node *node)
-// {
-//     if (node == NULL)
-//     {
-//         perror("NULL args");
-//         return false;
-//     }
-//     node->sock = socket(AF_INET, SOCK_STREAM, 0);
-//     if (node->sock == -1)
-//     {
-//         perror("Failed creating a sock");
-//         return false;
-//     }
-//     return true;
-// }
+
 bool NODE_add_neighbor(Node *node, int32_t id, int32_t fd)
 {
     node->neighbors_count++;
+    printf("neghibors count ++ Node_add_neighbor\n");
     node->neighbors = realloc(node->neighbors, node->neighbors_count * sizeof(Neighbor));
-    node->neighbors[node->neighbors_count - 1].id = id;
+    node->neighbors[node->neighbors_count - 1].connection = fd;
     /*check if I can add here ip port set as well*/
     return true;
 }
@@ -106,16 +93,10 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         perror("NULL args in NODE_connect");
         return false;
     }
-
-    int32_t src_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (src_sockfd == -1)
-    {
-        printf("socket creation failed...\n");
-        exit(0);
-    }
-    // if(Neighbor_exists(src_node->neighbors, src_node->neighbors_count, ))
     src_node->neighbors_count++;
+    printf("neghibors count ++ NODE_connect\n");
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
+
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
     src_node->neighbors[src_node->neighbors_count - 1].ip_addr = inet_addr(dst_ip);
     src_node->neighbors[src_node->neighbors_count - 1].port = dst_port;
@@ -124,29 +105,29 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     if (*src_sock_fd == -1)
     {
         printf("socket creation failed...\n");
-        exit(0);
+        return false;
     }
+    printf("added socket %d as neighbor\n", *src_sock_fd);
 
     struct sockaddr_in dst;
-    // inet_pton(AF_INET, dst_ip, &(dst_node.sock.sin_addr));
     dst.sin_addr.s_addr = inet_addr(dst_ip);
     dst.sin_port = htons(dst_port);
-
     dst.sin_family = AF_INET;
     int8_t ret = connect(*src_sock_fd, (struct sockaddr *)&dst, sizeof(dst));
     if (ret == -1)
     {
         perror("Error in connect\n");
+        NODE_disconnect_neighbor(src_node, *src_sock_fd);
         return false;
     }
     add_fd_to_monitoring(*src_sock_fd);
-    send_connect_message(*src_sock_fd, src_node->id);
-    /*
-
-    ADD HERE THE PROTOCOL LEVELS FROM INSTRUCTIONS:
-
-
-    */
+    bool val = send_connect_message(*src_sock_fd, src_node->id);
+    if (!val)
+    {
+        perror("Failed at send_connect_message\n");
+        return false;
+    }
+    return true;
 }
 
 bool NODE_send(Node *node, int32_t id, uint32_t len, char *str)
@@ -263,6 +244,8 @@ size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 {
     for (int i = 0; i < node->neighbors_count; i++)
     {
+        // printf("neighbor fd is %d, but i need %d\n", node->neighbors[i].connection, fd);
+
         if (node->neighbors[i].connection == fd)
         {
             return i;
@@ -273,6 +256,9 @@ size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 
 bool NODE_disconnect_neighbor(Node *node, short fd)
 {
+/*
+ADD HERE REMOVE FROM REACTOR!!!
+*/
     if (node == NULL)
     {
         perror("Null args in NODE_disconnect_neighbor");
@@ -299,8 +285,11 @@ bool NODE_disconnect_neighbor(Node *node, short fd)
         {
             memcpy(&temp_arr[k], &node->neighbors[k], sizeof(Neighbor));
         }
+        printf("closing connection...\n");
         close(node->neighbors[to_rm].connection);
         free(node->neighbors);
         node->neighbors = temp_arr;
     }
+    printf("Removed fd %d\n", fd);
+    return true;
 }

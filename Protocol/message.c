@@ -91,13 +91,16 @@ bool send_connect_message(short sock, uint32_t src_node_id)
 {
     message msg;
     create_connect_message(src_node_id, 0, &msg);
-    send(sock, &msg, sizeof(message), 0);
+    int ret = send(sock, &msg, sizeof(message), 0);
+    if (ret < 0)
+        return false;
+    return true;
 }
 
-bool send_ack_message(short sock, int32_t src_node_id, int32_t current_node, int32_t func_id)
+bool send_ack_message(short sock, int32_t src_node_id, int32_t current_node, int32_t payload)
 {
     message msg;
-    create_ack_message(src_node_id, current_node, func_id, &msg);
+    create_ack_message(src_node_id, current_node, payload, &msg);
     send(sock, &msg, sizeof(message), 0);
 }
 
@@ -112,22 +115,32 @@ bool send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t t
 {
     message msg;
     create_discover_message(src_id, dst_id, target_id, &msg);
-    send(sock, &msg, sizeof(message), 0);
+    int32_t ret = (sock, &msg, sizeof(message), 0);
+    if (ret < 0)
+        return false;
+    return true;
 }
 
 static bool parse_ack(Node *node, message *msg, int32_t from_fd)
 {
     if (node == NULL || msg == NULL)
     {
-        perror("NULL args in parse_ack");
+        perror("NULL args in parse_ack\n");
         return false;
     }
-
+    printf("msg->payload[0] = %d\n", msg->payload[0]);
+    switch (msg->payload[0])
+    {
+    case FUNC_ID_CONNECT:
+        printf("IGOT ack message for connect\n");
+        break;
+    }
     if (node->id == msg->dst_id)
     {
         int32_t n = Neighbor_get_index_by_ip_port(node->neighbors, node->neighbors_count, from_fd);
         if (n == -1)
         {
+            perror("didnt get the neghibor!!\n");
             return false;
         }
         else
@@ -136,6 +149,12 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
             return true;
         }
     }
+    else
+    {
+        printf("dst id is: %d but my id is: %d\n", msg->dst_id, node->id);
+        return false;
+    }
+    return true;
 }
 
 static bool parse_nack(Node *node, message *msg, int32_t fd)
@@ -153,8 +172,21 @@ static bool parse_connect(Node *node, message *msg, int32_t fd)
         perror("NULL args in parse_ack");
         return false;
     }
-    if (!NODE_add_neighbor(node, msg->src_id, fd))
+    size_t new_neighbor_index = NODE_get_neighbor_index_by_fd(node, fd);
+    if (new_neighbor_index < 0)
         return false;
+
+    struct sockaddr_in addr;
+    socklen_t addr_size = sizeof(struct sockaddr_in);
+    int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size);
+    int32_t port = ntohs(addr.sin_port);
+
+    node->neighbors[new_neighbor_index].port = port;
+    node->neighbors[new_neighbor_index].id = msg->src_id;
+    node->neighbors[new_neighbor_index].ip_addr = addr.sin_addr.s_addr;
+
+    send_ack_message(node->neighbors[new_neighbor_index].connection, node->id, msg->src_id, msg->msg_id);
+    printf("sent connect ack to (node id) %d\n", node->neighbors[new_neighbor_index].id);
 
     return true;
 }
