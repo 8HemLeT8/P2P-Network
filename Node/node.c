@@ -40,12 +40,13 @@ bool NODE_init(Node *node, uint32_t port)
         exit(0);
     }
     // Now server is ready to listen
-    if ((listen(node->sock, NUMBER_OF_NODES)) != 0)
+    if ((listen(node->sock, NODE_MAX_NEIGHBORS)) != 0)
     {
         printf("Listen() failed. Node ID: %d\n", node->id);
         exit(0);
     }
     LISTENING_FD = node->sock;
+    current_id = port;
     printf("port: %d is listening..\n", port);
 }
 

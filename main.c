@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -11,17 +12,19 @@ void clean(int temp)
 {
     close(LISTENING_FD);
 }
-int32_t main()
+int32_t main(int argc, char *argv[])
 {
-    signal(SIGINT, clean);
-    Node nodes[NUMBER_OF_NODES];
-    /* init nodes */
-    for (int32_t i = 0; i < NUMBER_OF_NODES; i++)
+    if (argc < 2)
     {
-        NODE_init(&nodes[i], NODE_FIRST_PORT + i);
-        add_fd_to_monitoring(nodes[i].sock);
+        perror("Run this node as ./run {PORT}\n");
+        return -1;
     }
-    printf("All nodes are initiated\n");
+    PORT = atoi(argv[1]);
+    signal(SIGINT, clean);
+    /* init node */
+    Node node;
+    NODE_init(&node, PORT);
+    add_fd_to_monitoring(node.sock);
 
     printf("current node is: %d\n", current_id);
     printf("Please enter your scommand: \n");
@@ -35,11 +38,9 @@ int32_t main()
         }
         else
         {
-            handle(ready_fd, NODE_get_by_id(nodes, current_id));
+            handle(ready_fd, &node);
         }
     }
     printf("Error occured!!\n");
     close(LISTENING_FD);
-    close(6965);
-    close(6966);
 }
