@@ -12,11 +12,21 @@ int32_t parse_check_run(Node *node, char *input)
     }
     bool success = true;
     char *chunk = strtok(input, COMMA);
-    if (chunk == NULL) // if there is no comma in the input
+    if (strncmp(input, "peers", 5) == 0)
+    {
+        success = check_peers(node);
+        if (!success)
+        {
+            return -1;
+        }
+        return 1;
+    }
+
+    if (chunk == NULL)
     {
         goto Exit;
     }
-    if (strcmp(chunk, "setid") == 0)
+    else if (strcmp(chunk, "setid") == 0)
     {
         success = check_setid(node, chunk);
         if (!success)
@@ -51,12 +61,6 @@ int32_t parse_check_run(Node *node, char *input)
     else
     {
         goto Exit;
-    }
-
-    while (chunk != NULL)
-    {
-        // printf("%s\n", chunk);
-        chunk = strtok(NULL, COMMA);
     }
     return 1;
 Exit:
@@ -147,13 +151,19 @@ bool check_route(Node *node, char *string)
 Exit:
     return success;
 }
-// bool check_peers(char *string);
-
-// int32_t main()
-// {
-//     printf("temp main\n");
-//     char test[15] = "127.0.0.1:1337";
-//     check_connect(test);
-//     char test2[10] = "5";
-//     check_setid(test2);
-// }
+bool check_peers(Node *node)
+{
+    if (node == NULL)
+    {
+        perror("NULL ARGS IN check_route\n");
+        return false;
+    }
+    for (int i = 0; i < node->neighbors_count; i++)
+    {
+        printf("%d", node->neighbors[i].id);
+        if (i < node->neighbors_count - 1)
+            printf(",");
+    }
+    printf("\n");
+    return true;
+}

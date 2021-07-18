@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <errno.h>
 #include <stdio.h>
 #include "../Configuration/configuration.h"
@@ -102,7 +103,6 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
 
     src_node->neighbors_count++;
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
-
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
     src_node->neighbors[src_node->neighbors_count - 1].ip_addr = inet_addr(dst_ip);
     src_node->neighbors[src_node->neighbors_count - 1].port = dst_port;
@@ -125,6 +125,7 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         NODE_disconnect_neighbor(src_node, *src_sock_fd);
         return false;
     }
+
     add_fd_to_monitoring(*src_sock_fd);
     int32_t msg_id = send_connect_message(*src_sock_fd, src_node->id);
     if (msg_id < 0)
@@ -132,10 +133,12 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         perror("Failed at send_connect_message\n");
         return false;
     }
+
     src_node->connect_sent.amount++;
     src_node->connect_sent.ids = realloc(src_node->connect_sent.ids,
                                          src_node->connect_sent.amount * sizeof(int32_t));
     src_node->connect_sent.ids[src_node->connect_sent.amount - 1] = msg_id;
+
     return true;
 }
 
@@ -185,7 +188,7 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
     }
     else
     {
-        printf("sent in sock %d\n",dst_sock);
+        printf("sent in sock %d\n", dst_sock);
         bool ret = send_message(dst_sock, node->id, id, len, data);
         if (!ret)
         {
@@ -395,4 +398,19 @@ RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id)
         }
     }
     return NULL;
+}
+
+Route *NODE_choose_route(Route *routes, size_t len)
+{
+    size_t min_len = INT32_MAX;
+    size_t index = INT32_MAX;
+    for (int i = 0; i < len; i++)
+    {
+        if (routes[i].route_len < min_len)
+        {
+            min_len = routes->route_len;
+            index = i;
+        }
+    }
+    return &routes[index];
 }

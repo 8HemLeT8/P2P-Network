@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <malloc.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 
 static uint32_t id = 0;
@@ -34,6 +35,10 @@ static void debug_print_message(message *msg)
     if (msg->func_id == FUNC_ID_ACK || msg->func_id == FUNC_ID_NACK)
     {
         printf("payload: %d\n", (int)msg->payload[0]);
+    }
+    if (msg->func_id == FUNC_ID_DISCOVER)
+    {
+        printf("payload: %d\n", atoi(msg->payload));
     }
     else
     {
@@ -84,7 +89,8 @@ bool create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, 
     msg->trailing_msg = 0; // TODO ??
     msg->func_id = FUNC_ID_DISCOVER;
     memset(msg->payload, 0, sizeof(msg->payload));
-    memcpy(&msg->payload[0], &target_id, sizeof(int32_t));
+    memcpy(msg->payload, &target_id, sizeof(int32_t));
+    printf("in create, payload has %d\n", (int32_t)(*msg->payload));
     return true;
 }
 
@@ -170,10 +176,10 @@ bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, in
 
 bool send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t target_id)
 {
-    printf("sent discovery to %d\n", dst_id);
+    printf("sent discovery to %d with target for %d\n", dst_id, target_id);
 
     message msg;
-    create_discover_message(src_id, dst_id, target_id, &msg);
+    create_discover_message(src_id, dst_id, htonl(target_id), &msg);
     int32_t ret = send(sock, &msg, sizeof(message), 0);
     if (ret < 0)
         return false;
@@ -208,7 +214,9 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
             node->connect_sent.amount--;
             if (node->connect_sent.amount == 0)
             {
+
                 free(node->connect_sent.ids);
+                node->connect_sent.ids = NULL;
             }
 
             return true;
@@ -243,6 +251,11 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
     {
         perror("NULL args in parse_ack");
     }
+    RoutingInfo *ri;
+    if ((ri = NODE_get_route_info(node, ((int32_t *)msg->payload)[0])) != NULL)
+    {
+        ri->responds_got++;
+    }
 }
 
 static bool parse_connect(Node *node, message *msg, int32_t fd)
@@ -275,9 +288,12 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
 {
     if (node == NULL || msg == NULL)
     {
-        perror("NULL args in parse_discover");
+        perror("NULL args in parse_discover\n");
+        return false;
     }
-    int32_t target_id = (int32_t)(msg->payload)[0];
+    debug_print_message(msg);
+    int32_t target_id = ntohl(msg->payload[0]);
+    printf("in parsing discover, the target is %d %d\n", (msg->payload)[0], (msg->payload)[1]);
     if (node->id == target_id)
     {
         Route route;
@@ -337,16 +353,19 @@ static bool parse_route(Node *node, message *msg, short from_fd)
         perror("Failed in NODE_get_route_info\n");
         return false;
     }
-    /* TODO AFTER I FINISH WITH DISCOVER
+    // TODO AFTER I FINISH WITH DISCOVER
     if (ri->src_node_id == node->id)
     {
         if (ri->responds_got == node->neighbors_count)
         {
             //got all the route and nacks back
-            // NODE_choose_route(node);
+            //choose the best route
+            //build the relay message
+            Route *best = NODE_choose_route(ri->routes, ri->routes_got);
+            printf("I need to send my message to: %d\n", *best->nodes_ids);
         }
     }
-    */
+
     else
     {
         bool ret = add_myself_to_route(node->id, msg);
