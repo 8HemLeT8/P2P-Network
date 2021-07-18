@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
+#include <malloc.h>
 #include <sys/socket.h>
 
 static uint32_t id = 0;
@@ -87,6 +88,19 @@ bool create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, 
     return true;
 }
 
+bool create_route_message(int32_t src_id, int32_t dst_id, Route *route, message *msg)
+{
+    msg->msg_id = id++;
+    msg->src_id = src_id;
+    msg->dst_id = dst_id;
+    msg->trailing_msg = 0;
+    msg->func_id = FUNC_ID_ROUTE;
+    memset(msg->payload, 0, sizeof(msg->payload));
+    memcpy(msg->payload, route, sizeof(Route));
+    memcpy(((Route *)msg->payload)->nodes_ids, route->nodes_ids, route->route_len);
+    return true;
+}
+
 bool create_send_message(int32_t src_id, int32_t dst_id, char *payload, int32_t len, message *msg)
 {
     msg->msg_id = id++;
@@ -130,9 +144,6 @@ bool add_myself_to_route(int32_t my_id, message *route_msg)
     *pointer = my_id; //add my id in the last position
     return true;
 }
-bool create_route_message(int32_t starting_msg_id, int32_t route_size, ...)
-{
-}
 bool send_connect_message(short sock, uint32_t src_node_id)
 {
     message msg;
@@ -161,6 +172,16 @@ bool send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t t
 {
     message msg;
     create_discover_message(src_id, dst_id, target_id, &msg);
+    int32_t ret = (sock, &msg, sizeof(message), 0);
+    if (ret < 0)
+        return false;
+    return true;
+}
+
+bool send_route_message(short sock, int32_t src_node_id, int32_t dst_node_id, Route *route)
+{
+    message msg;
+    create_route_message(src_node_id, dst_node_id, route, &msg);
     int32_t ret = (sock, &msg, sizeof(message), 0);
     if (ret < 0)
         return false;
@@ -237,28 +258,89 @@ static bool parse_connect(Node *node, message *msg, int32_t fd)
     return true;
 }
 
-static bool parse_discover(Node *node, message *msg)
+static bool parse_discover(Node *node, message *msg, short from_fd)
 {
     if (node == NULL || msg == NULL)
     {
         perror("NULL args in parse_discover");
     }
+    int32_t target_id = (int32_t)(msg->payload)[0];
+    if (node->id == target_id)
+    {
+        Route route;
+        route.og_id = msg->msg_id;
+        route.route_len = 1;
+        route.nodes_ids = (int32_t *)malloc(sizeof(int32_t));
+        route.nodes_ids[0] = node->id;
+        int32_t dst_id = node->neighbors[NODE_get_neighbor_index_by_fd(node, from_fd)].id;
+        bool ret = send_route_message(from_fd, node->id, dst_id, &route);
+        if (!ret)
+        {
+            perror("Failed in send_route_message\n");
+            return false;
+        }
+    }
+    else
+    {
+        for (int i = 0; i < node->neighbors_count; i++)
+        {
+            bool ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, target_id);
+            if (!ret)
+            {
+                perror("Failed in send_discover_message\n");
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
-static bool parse_route(Node *node, message *msg)
+static bool parse_route(Node *node, message *msg, short from_fd)
 {
     if (node == NULL || msg == NULL)
     {
         perror("NULL args in parse_ack");
     }
-    if (msg->dst_id == node->id)
+    Route *route = (Route *)msg->payload;
+    bool res = NODE_add_route(node, route);
+    if (!res)
     {
+        perror("Failed in adding route..\n");
+        return false;
     }
+
+    RoutingInfo *ri = NODE_get_route_info(node, route->og_id);
+    if (ri == NULL)
+    {
+        perror("Failed in NODE_get_route_info\n");
+        return false;
+    }
+    /* TODO AFTER I FINISH WITH DISCOVER
+    if (ri->src_node_id == node->id)
+    {
+        if (ri->responds_got == node->neighbors_count)
+        {
+            //got all the route and nacks back
+            // NODE_choose_route(node);
+        }
+    }
+    */
     else
     {
-        //FIND OUT TO WHAT SOCKET DO I FORWARD THE ROUTE MSG
-
-        // send_route_message(Neghibor_get_sock_by_id())
+        bool ret = add_myself_to_route(node->id, msg);
+        if (!ret)
+        {
+            perror("failed in add_myself_to_route\n");
+            return false;
+        }
+        short dst_sock = Neghibor_get_sock_by_id(node->neighbors, node->neighbors_count, ri->src_node_id);
+        ret = send_route_message(dst_sock, node->id, ri->src_node_id, (Route *)msg->payload);
+        if (!ret)
+        {
+            perror("failed in send_route_message\n");
+            return false;
+        }
     }
 }
 
@@ -268,8 +350,11 @@ static bool parse_send(Node *node, message *msg)
     {
         perror("NULL args in parse_ack");
     }
-    printf("GOT: %s\n", msg->payload);
-    return true;
+    if (msg->dst_id == node->id)
+    {
+        printf("GOT: %s\n", msg->payload);
+        return true;
+    }
 }
 
 bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
@@ -315,7 +400,7 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         break;
     case FUNC_ID_DISCOVER:
         printf("Got an discover message\n");
-        success = parse_discover(node, msg);
+        success = parse_discover(node, msg, from_fd);
         if (!success)
         {
             perror("Failed parsing discover");
@@ -324,7 +409,7 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         break;
     case FUNC_ID_ROUTE:
         printf("Got an route message\n");
-        success = parse_route(node, msg);
+        success = parse_route(node, msg, from_fd);
         if (!success)
         {
             perror("Failed parsing route");

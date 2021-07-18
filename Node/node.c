@@ -18,6 +18,8 @@ bool NODE_init(Node *node, uint32_t port)
     }
     node->neighbors_count = 0;
     node->neighbors = NULL;
+    node->routing_count = 0;
+    node->my_routing = NULL;
     node->id = port;
 
     int32_t sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -302,4 +304,77 @@ ADD HERE REMOVE FROM REACTOR!!!
     }
     printf("Removed fd %d\n", fd);
     return true;
+}
+/**
+ * check if it is a route message
+ * find the route og_id and add to it the route
+ * 
+ */
+
+bool NODE_add_route(Node *node, Route *new_route)
+{
+    if (node == NULL || new_route == NULL)
+    {
+        perror("NULL args in NODE_add_route\n");
+    }
+    bool added = false;
+
+    if (node->routing_count == 0)
+    {
+        node->routing_count++;
+        node->my_routing = malloc(sizeof(RoutingInfo));
+        node->my_routing[0].og_id = new_route->og_id;
+        node->my_routing[0].routes_got++;
+        node->my_routing[0].responds_got++;
+        node->my_routing[0].routes = malloc(sizeof(Route));
+        node->my_routing[0].routes[0].nodes_ids = malloc(sizeof(int32_t) * new_route->route_len);
+        memcpy(&node->my_routing[0].routes[0], new_route, (sizeof(new_route))); //need to check
+    }
+
+    for (int i = 0; i < node->routing_count; i++) // serach for exsiting og_id
+    {
+        if (node->my_routing[i].og_id == new_route->og_id)
+        {
+            node->my_routing[i].routes_got++;
+            node->my_routing[i].responds_got++;
+            node->my_routing = realloc(node->my_routing[i].routes, node->my_routing[i].routes_got);
+            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].og_id = new_route->og_id;
+            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].route_len = new_route->route_len;
+            memcpy(&node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
+                   new_route->nodes_ids, (sizeof(int32_t) * new_route->route_len));
+            added = true;
+            break;
+        }
+    }
+    if (!added) /* new routing */
+    {
+        node->routing_count++;
+        node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
+        node->my_routing[node->routing_count - 1].og_id = new_route->og_id;
+        node->my_routing[node->routing_count - 1].responds_got = 1;
+        node->my_routing[node->routing_count - 1].routes_got = 1;
+        node->my_routing[node->routing_count - 1].routes = malloc(sizeof(Route) * new_route->route_len);
+        node->my_routing[node->routing_count - 1].routes->og_id = new_route->og_id;
+        node->my_routing[node->routing_count - 1].routes->route_len = new_route->route_len;
+        memcpy(node->my_routing[node->routing_count - 1].routes->nodes_ids, new_route->nodes_ids, sizeof(int32_t) * new_route->route_len);
+        added = true;
+    }
+    return true;
+}
+
+RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id)
+{
+    if (node == NULL)
+    {
+        perror("NULL args in NODE_get_route_info");
+        return NULL;
+    }
+    for (int i = 0; i < node->routing_count; i++)
+    {
+        if (node->my_routing[i].og_id = route_id)
+        {
+            return &node->my_routing[i];
+        }
+    }
+    return NULL;
 }
