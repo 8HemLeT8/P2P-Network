@@ -170,9 +170,11 @@ bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, in
 
 bool send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t target_id)
 {
+    printf("sent discovery to %d\n", dst_id);
+
     message msg;
     create_discover_message(src_id, dst_id, target_id, &msg);
-    int32_t ret = (sock, &msg, sizeof(message), 0);
+    int32_t ret = send(sock, &msg, sizeof(message), 0);
     if (ret < 0)
         return false;
     return true;
@@ -212,6 +214,7 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
             return true;
         }
     }
+    /** ADD HERE MORE FUNCTION ACKS HANDLERS **/
     if (node->id == msg->dst_id)
     {
         int32_t n = Neighbor_get_index_by_ip_port(node->neighbors, node->neighbors_count, from_fd);
@@ -299,11 +302,14 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
     {
         for (int i = 0; i < node->neighbors_count; i++)
         {
-            bool ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, target_id);
-            if (!ret)
+            if (node->neighbors[i].id != msg->src_id)
             {
-                perror("Failed in send_discover_message\n");
-                return false;
+                bool ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, target_id);
+                if (!ret)
+                {
+                    perror("Failed in send_discover_message\n");
+                    return false;
+                }
             }
         }
     }

@@ -97,20 +97,22 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         perror("NULL args in NODE_connect");
         return false;
     }
+
+    // NODE_add_neighbor(src_node, -1, src_sock_fd, );
+
     src_node->neighbors_count++;
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
 
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
     src_node->neighbors[src_node->neighbors_count - 1].ip_addr = inet_addr(dst_ip);
     src_node->neighbors[src_node->neighbors_count - 1].port = dst_port;
-    // src_node->neighbors[src_node->neighbors_count-1].id = NODE_get_by_port
+
     *src_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (*src_sock_fd == -1)
     {
         printf("socket creation failed...\n");
         return false;
     }
-    // printf("added socket %d as neighbor\n", *src_sock_fd);
 
     struct sockaddr_in dst;
     dst.sin_addr.s_addr = inet_addr(dst_ip);
@@ -183,6 +185,7 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
     }
     else
     {
+        printf("sent in sock %d\n",dst_sock);
         bool ret = send_message(dst_sock, node->id, id, len, data);
         if (!ret)
         {
