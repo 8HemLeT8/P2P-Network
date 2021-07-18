@@ -20,6 +20,8 @@ bool NODE_init(Node *node, uint32_t port)
     node->neighbors = NULL;
     node->routing_count = 0;
     node->my_routing = NULL;
+    node->connect_sent.amount = 0;
+    node->connect_sent.ids = NULL;
     node->id = port;
 
     int32_t sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -82,7 +84,6 @@ Exit:
 bool NODE_add_neighbor(Node *node, int32_t id, int32_t fd)
 {
     node->neighbors_count++;
-    printf("neghibors count ++ Node_add_neighbor\n");
     node->neighbors = realloc(node->neighbors, node->neighbors_count * sizeof(Neighbor));
     node->neighbors[node->neighbors_count - 1].connection = fd;
     /*check if I can add here ip port set as well*/
@@ -97,7 +98,6 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         return false;
     }
     src_node->neighbors_count++;
-    printf("neghibors count ++ NODE_connect\n");
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
 
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
@@ -110,7 +110,7 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         printf("socket creation failed...\n");
         return false;
     }
-    printf("added socket %d as neighbor\n", *src_sock_fd);
+    // printf("added socket %d as neighbor\n", *src_sock_fd);
 
     struct sockaddr_in dst;
     dst.sin_addr.s_addr = inet_addr(dst_ip);
@@ -124,12 +124,16 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         return false;
     }
     add_fd_to_monitoring(*src_sock_fd);
-    bool val = send_connect_message(*src_sock_fd, src_node->id);
-    if (!val)
+    int32_t msg_id = send_connect_message(*src_sock_fd, src_node->id);
+    if (msg_id < 0)
     {
         perror("Failed at send_connect_message\n");
         return false;
     }
+    src_node->connect_sent.amount++;
+    src_node->connect_sent.ids = realloc(src_node->connect_sent.ids,
+                                         src_node->connect_sent.amount * sizeof(int32_t));
+    src_node->connect_sent.ids[src_node->connect_sent.amount - 1] = msg_id;
     return true;
 }
 
@@ -155,15 +159,27 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
                 perror("BAD MESSAGE FORMAT");
                 return false;
             }
-            free(msg);
             msg = (message *)data;
             if (msg->dst_id == node->id)
             {
-                // send_ack_message(Neghibor_get_sock_by_id(   ))
+                printf("SENT MSG TO MYSELF..?..\n");
+                /* add logic? */
+            }
+            for (int i = 0; i < node->neighbors_count; i++)
+            {
+                bool ret = send_discover_message(node->neighbors[i].connection, node->id,
+                                                 node->neighbors[i].id, id);
+                if (!ret)
+                {
+                    perror("Failed in send_discover_message");
+                }
             }
         }
-        perror("No neghibors found!\n");
-        return false;
+        else
+        {
+            perror("No neghibors found!\n");
+            return false;
+        }
     }
     else
     {
@@ -181,7 +197,6 @@ short Neghibor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id)
 {
     if (nodes == NULL)
     {
-        perror("NULL args in Neghibor_get_sock_by_id\n");
         goto Exit;
     }
     for (size_t i = 0; i < size; i++)

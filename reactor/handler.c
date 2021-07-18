@@ -34,7 +34,7 @@ bool handle(int32_t fd, Node *node)
     else
     {
         size_t len = recv(fd, buffer, sizeof(message), 0);
-        printf(" recieved: %ld bytes\n", len);
+        // printf(" recieved: %ld bytes\n", len);
         message_parse(node, buffer, len, fd);
     }
 

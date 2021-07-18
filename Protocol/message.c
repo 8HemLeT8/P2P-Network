@@ -42,14 +42,14 @@ static void debug_print_message(message *msg)
     printf("~~~~~~~~~~~~~~~~~\n");
 }
 
-bool create_connect_message(int32_t src_id, int32_t dst_id, message *msg)
+int32_t create_connect_message(int32_t src_id, int32_t dst_id, message *msg)
 {
     msg->src_id = src_id;
     msg->dst_id = dst_id;
     msg->trailing_msg = 0;
     msg->msg_id = id++;
     msg->func_id = FUNC_ID_CONNECT;
-    return true;
+    return msg->msg_id;
 }
 
 bool create_ack_message(int32_t src_id, int32_t dst_id, int32_t payload, message *msg)
@@ -144,14 +144,14 @@ bool add_myself_to_route(int32_t my_id, message *route_msg)
     *pointer = my_id; //add my id in the last position
     return true;
 }
-bool send_connect_message(short sock, uint32_t src_node_id)
+int32_t send_connect_message(short sock, uint32_t src_node_id)
 {
     message msg;
-    create_connect_message(src_node_id, 0, &msg);
+    int32_t msg_id = create_connect_message(src_node_id, 0, &msg);
     int ret = send(sock, &msg, sizeof(message), 0);
     if (ret < 0)
-        return false;
-    return true;
+        return -1;
+    return msg_id;
 }
 
 bool send_ack_message(short sock, int32_t src_node_id, int32_t current_node, int32_t payload)
@@ -195,12 +195,22 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
         perror("NULL args in parse_ack\n");
         return false;
     }
-    printf("msg->payload[0] = %d\n", msg->payload[0]);
-    switch (msg->payload[0])
+    printf("ACK\n");
+    for (int i = 0; i < node->connect_sent.amount; i++)
     {
-    case FUNC_ID_CONNECT:
-        printf("IGOT ack message for connect\n");
-        break;
+        if (node->connect_sent.ids[i] == (msg->payload)[0])
+        {
+            size_t new_neighbor = NODE_get_neighbor_index_by_fd(node, from_fd);
+            node->neighbors[new_neighbor].id = msg->src_id;
+            printf("%d\n", msg->src_id);
+            node->connect_sent.amount--;
+            if (node->connect_sent.amount == 0)
+            {
+                free(node->connect_sent.ids);
+            }
+
+            return true;
+        }
     }
     if (node->id == msg->dst_id)
     {
@@ -280,6 +290,11 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
             return false;
         }
     }
+    /**
+    else if(NULL != ()){
+                ADD HERE THE SEND BACK A NACK IF THIS IS ALREADY KNOWN TARGET?
+    }
+    **/
     else
     {
         for (int i = 0; i < node->neighbors_count; i++)
@@ -300,7 +315,7 @@ static bool parse_route(Node *node, message *msg, short from_fd)
 {
     if (node == NULL || msg == NULL)
     {
-        perror("NULL args in parse_ack");
+        perror("NULL args in parse_route");
     }
     Route *route = (Route *)msg->payload;
     bool res = NODE_add_route(node, route);
@@ -348,7 +363,7 @@ static bool parse_send(Node *node, message *msg)
 {
     if (node == NULL || msg == NULL)
     {
-        perror("NULL args in parse_ack");
+        perror("NULL args in parse_send");
     }
     if (msg->dst_id == node->id)
     {

@@ -25,6 +25,12 @@ typedef struct routing_now
     int32_t src_node_id;
 } RoutingInfo;
 
+typedef struct connect_info
+{
+    size_t amount;
+    int32_t *ids;
+} ConnectSent;
+
 typedef struct node
 {
     int32_t id;
@@ -33,6 +39,7 @@ typedef struct node
     uint8_t neighbors_count;
     int32_t routing_count;
     RoutingInfo *my_routing;
+    ConnectSent connect_sent;
 } Node;
 
 bool NODE_init(Node *node, uint32_t port);
