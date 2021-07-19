@@ -66,6 +66,5 @@ short Neighbor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id);
 bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id);
 
 bool NODE_add_route(Node *node, Route *route);
-Route *NODE_choose_route(Route *routes, size_t len);
-bool ROUTE_desirialize(SerializedRoute* serialized_route, Route* route);
-
+bool NODE_choose_route(Route *routes, size_t len, Route *best);
+bool ROUTE_desirialize(SerializedRoute *serialized_route, Route *route);

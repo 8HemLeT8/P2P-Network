@@ -264,6 +264,7 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
     {
         perror("NULL args in parse_ack");
     }
+    bool ret;
     RoutingInfo *ri;
     int32_t id_for = ((int32_t *)msg->payload)[0]; //the msg_id nack is responding to
     for (int i = 0; i < node->neighbors_count; i++)
@@ -285,13 +286,14 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
                     }
                     else
                     {
-                        Route *r = NODE_choose_route(node->my_routing[i].routes, node->my_routing[i].routes_got);
-                        if (r == NULL)
+                        Route *r;
+                        ret = NODE_choose_route(node->my_routing[i].routes, node->my_routing[i].routes_got, r);
+                        if (!ret)
                         {
                             perror("Failed in NODE_choose_route\n");
                             return false;
                         }
-                        bool ret = send_route_message(dst_sock, node->id, dst_node_id, r);
+                        ret = send_route_message(dst_sock, node->id, dst_node_id, r);
                         if (!ret)
                         {
                             perror("Failed in send_route_message\n");
@@ -394,7 +396,7 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
     return true;
 }
 
-static bool parse_route(Node *node, message *msg, short from_fd)
+static bool parse_route(Node *node, message *msg, short from_fd, Route *best_route)
 {
     if (node == NULL || msg == NULL)
     {
@@ -417,8 +419,7 @@ static bool parse_route(Node *node, message *msg, short from_fd)
         return false;
     }
     // TODO AFTER I FINISH WITH DISCOVER
-    ri->responds_got++;
-    ri->routes_got++;
+
     printf("ri->src_node_id: %d\n", ri->src_node_id);
     if (ri->src_node_id == node->id)
     {
@@ -429,8 +430,16 @@ static bool parse_route(Node *node, message *msg, short from_fd)
 
             //got all the route and nacks back
             //choose the best route
-            Route *best = NODE_choose_route(ri->routes, ri->routes_got);
-            printf("I need to send my message to: %d\n", *best->nodes_ids);
+            ret = NODE_choose_route(ri->routes, ri->routes_got, best_route);
+            printf("debug 2\n");
+
+            if (!ret)
+            {
+                perror("Failed in NODE_choose_route\n");
+                return false;
+            }
+            printf("I need to send my message to: %d\n", best_route->nodes_ids[0]);
+            return best_route;
         }
     }
 
@@ -528,7 +537,8 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
         break;
     case FUNC_ID_ROUTE:
         printf("Got an route message\n");
-        success = parse_route(node, msg, from_fd);
+        Route best;
+        success = parse_route(node, msg, from_fd, &best);
         if (!success)
         {
             perror("Failed parsing route");
