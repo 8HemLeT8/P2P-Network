@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <string.h>
-
+#include <stdint.h>
 #include "select.h"
 
 #define TRUE (1)
@@ -30,6 +30,39 @@ static int32_t add_fd_to_monitoring_internal(const unsigned int fd)
   return 0;
 }
 
+int rm_fd_internal(const uint32_t fd)
+{
+  int32_t *tmp_alloc;
+  alloced_fds_num--;
+  if (alloced_fds_num == 0)
+  {
+    free(alloced_fds);
+    alloced_fds = NULL;
+  }
+  tmp_alloc = realloc(alloced_fds, sizeof(int32_t) * (alloced_fds_num));
+  if (tmp_alloc == NULL)
+    return -1;
+  int i = 0;
+  for (i = 0; i < alloced_fds_num; i++)
+  {
+    if (alloced_fds[i] != fd)
+    {
+      tmp_alloc[i] = alloced_fds[i];
+    }
+    else
+    {
+      break;
+    }
+  }
+  //now fd = allocated[i]
+  for (int j = i + i; j < alloced_fds_num; i++)
+  {
+    tmp_alloc[i++] = alloced_fds[j];
+  }
+  alloced_fds = tmp_alloc;
+  return 0;
+}
+
 int32_t init()
 {
   FD_ZERO(&rfds_copy);
@@ -45,6 +78,14 @@ int add_fd_to_monitoring(const unsigned int fd)
     init();
   if (fd > 0)
     return add_fd_to_monitoring_internal(fd);
+  return 0;
+}
+int remove_fd_from_monitoring(const unsigned int fd)
+{
+  if (!initialized)
+    init();
+  if (fd > 0)
+    return rm_fd_internal(fd);
   return 0;
 }
 

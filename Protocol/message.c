@@ -38,7 +38,21 @@ static void debug_print_message(message *msg)
     }
     if (msg->func_id == FUNC_ID_DISCOVER)
     {
-        printf("payload: %d\n", atoi(msg->payload));
+        printf("payload: %d\n", ((int32_t *)msg->payload)[0]);
+    }
+    if (msg->func_id == FUNC_ID_ROUTE)
+    {
+        SerializedRoute *r = (SerializedRoute *)msg->payload;
+        printf("route len: %d\n", r->route_len);
+        printf("route og_id: %d\n", r->og_id);
+        for (int i = 0; i < r->route_len; i++)
+        {
+            if (i < r->route_len - 1)
+            {
+                printf("i=%d, %d -> ", i, r->nodes_ids[i]);
+            }
+            printf("i=%d, %d\n", i, r->nodes_ids[i]);
+        }
     }
     else
     {
@@ -81,7 +95,7 @@ bool create_nack_message(int32_t src_id, int32_t dst_id, int32_t payload, messag
     return true;
 }
 
-bool create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, message *msg)
+uint32_t create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, message *msg)
 {
     msg->msg_id = id++;
     msg->src_id = src_id;
@@ -89,9 +103,8 @@ bool create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_id, 
     msg->trailing_msg = 0; // TODO ??
     msg->func_id = FUNC_ID_DISCOVER;
     memset(msg->payload, 0, sizeof(msg->payload));
-    memcpy(msg->payload, &target_id, sizeof(int32_t));
-    printf("in create, payload has %d\n", (int32_t)(*msg->payload));
-    return true;
+    memcpy((int32_t *)msg->payload, &target_id, sizeof(int32_t));
+    return msg->msg_id;
 }
 
 bool create_route_message(int32_t src_id, int32_t dst_id, Route *route, message *msg)
@@ -102,8 +115,11 @@ bool create_route_message(int32_t src_id, int32_t dst_id, Route *route, message 
     msg->trailing_msg = 0;
     msg->func_id = FUNC_ID_ROUTE;
     memset(msg->payload, 0, sizeof(msg->payload));
-    memcpy(msg->payload, route, sizeof(Route));
-    memcpy(((Route *)msg->payload)->nodes_ids, route->nodes_ids, route->route_len);
+    SerializedRoute *sr = (SerializedRoute *)msg->payload;
+    sr->og_id = route->og_id;
+    sr->route_len = route->route_len;
+    memcpy(sr->nodes_ids, route->nodes_ids, route->route_len * sizeof(int32_t));
+    //copy the allocated ids to the message buffer
     return true;
 }
 
@@ -137,17 +153,12 @@ bool send_message(short sock, int32_t src_id, int32_t dst_id, size_t len, char *
     return true;
 }
 
-bool add_myself_to_route(int32_t my_id, message *route_msg)
+bool add_myself_to_route(int32_t my_id, Route *route)
 {
-    int *pointer = (int *)route_msg->payload; //original message id
-    pointer++;                                //number of routing elements
-    (*pointer)++;                             //add myself to size
-    int32_t num_of_elements = *pointer;
-    for (int i = 0; i < num_of_elements; i++)
-    {
-        pointer++;
-    }
-    *pointer = my_id; //add my id in the last position
+    route->route_len++;
+    //change the value in the message payload
+    route->nodes_ids = (int32_t *)realloc(route->nodes_ids, route->route_len * sizeof(int32_t));
+    route->nodes_ids[route->route_len - 1] = my_id; //add my id in the last position
     return true;
 }
 int32_t send_connect_message(short sock, uint32_t src_node_id)
@@ -174,23 +185,25 @@ bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, in
     send(sock, &msg, sizeof(message), 0);
 }
 
-bool send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t target_id)
+int64_t send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t target_id)
 {
     printf("sent discovery to %d with target for %d\n", dst_id, target_id);
 
     message msg;
-    create_discover_message(src_id, dst_id, htonl(target_id), &msg);
+    uint32_t id = create_discover_message(src_id, dst_id, target_id, &msg);
     int32_t ret = send(sock, &msg, sizeof(message), 0);
     if (ret < 0)
-        return false;
-    return true;
+        return -1;
+    return id;
 }
 
 bool send_route_message(short sock, int32_t src_node_id, int32_t dst_node_id, Route *route)
 {
     message msg;
+    printf("send route message to %d\n", dst_node_id);
     create_route_message(src_node_id, dst_node_id, route, &msg);
-    int32_t ret = (sock, &msg, sizeof(message), 0);
+    int32_t ret = send(sock, &msg, sizeof(message), 0);
+    debug_print_message(&msg);
     if (ret < 0)
         return false;
     return true;
@@ -252,9 +265,43 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
         perror("NULL args in parse_ack");
     }
     RoutingInfo *ri;
-    if ((ri = NODE_get_route_info(node, ((int32_t *)msg->payload)[0])) != NULL)
+    int32_t id_for = ((int32_t *)msg->payload)[0]; //the msg_id nack is responding to
+    for (int i = 0; i < node->neighbors_count; i++)
     {
-        ri->responds_got++;
+        for (int j = 0; j < node->neighbors_count; j++)
+        {
+            //find the message that the nack is for
+            if (node->my_routing[i].discover_ids[j] == id_for)
+            {
+                node->my_routing[i].responds_got++;
+                if (node->my_routing[i].responds_got == node->neighbors_count)
+                {
+                    int32_t dst_node_id = node->my_routing[i].src_node_id;
+                    short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, dst_node_id);
+                    //got all responses for this discover
+                    if (node->my_routing[i].routes_got = 0)
+                    {
+                        return send_nack_message(dst_sock, node->id, dst_node_id, node->my_routing->og_id);
+                    }
+                    else
+                    {
+                        Route *r = NODE_choose_route(node->my_routing[i].routes, node->my_routing[i].routes_got);
+                        if (r == NULL)
+                        {
+                            perror("Failed in NODE_choose_route\n");
+                            return false;
+                        }
+                        bool ret = send_route_message(dst_sock, node->id, dst_node_id, r);
+                        if (!ret)
+                        {
+                            perror("Failed in send_route_message\n");
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+        }
     }
 }
 
@@ -291,41 +338,55 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
         perror("NULL args in parse_discover\n");
         return false;
     }
-    debug_print_message(msg);
-    int32_t target_id = ntohl(msg->payload[0]);
-    printf("in parsing discover, the target is %d %d\n", (msg->payload)[0], (msg->payload)[1]);
-    if (node->id == target_id)
+    int32_t target_id = ((int32_t *)(msg->payload))[0]; // get first int32 from the payload
+    Neighbor *got_from = &node->neighbors[NODE_get_neighbor_index_by_fd(node, from_fd)];
+    if (node->id == target_id) // IF IM the discover destination
     {
+        printf("IM THE TATGET!!\n");
         Route route;
         route.og_id = msg->msg_id;
         route.route_len = 1;
-        route.nodes_ids = (int32_t *)malloc(sizeof(int32_t));
+        route.nodes_ids = (int32_t *)malloc(route.route_len * sizeof(int32_t));
         route.nodes_ids[0] = node->id;
-        int32_t dst_id = node->neighbors[NODE_get_neighbor_index_by_fd(node, from_fd)].id;
-        bool ret = send_route_message(from_fd, node->id, dst_id, &route);
+        int32_t dst_id = got_from->id;
+        printf("sending to sock %d\n", got_from->connection);
+        bool ret = send_route_message(got_from->connection, node->id, dst_id, &route);
         if (!ret)
         {
             perror("Failed in send_route_message\n");
             return false;
         }
+        free(route.nodes_ids);
+        return true;
     }
-    /**
-    else if(NULL != ()){
-                ADD HERE THE SEND BACK A NACK IF THIS IS ALREADY KNOWN TARGET?
-    }
-    **/
-    else
+    if (node->neighbors_count == 1) //no more neighbors to search
     {
+        return send_nack_message(got_from->connection, node->id, got_from->id, msg->msg_id);
+    }
+    else //I am not the target so now im searching for it...
+    {
+        node->routing_count++;
+        node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
+        RoutingInfo *ri = &node->my_routing[node->routing_count - 1];
+        ri->src_node_id = msg->src_id;
+        ri->og_id = msg->msg_id;
+        ri->responds_got = 0;
+        ri->routes_got = 0;
+        ri->routes = NULL;
+        ri->discover_ids = NULL;
+        ri->discover_ids = (int32_t *)malloc(node->neighbors_count * sizeof(int32_t));
+
         for (int i = 0; i < node->neighbors_count; i++)
         {
             if (node->neighbors[i].id != msg->src_id)
             {
-                bool ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, target_id);
-                if (!ret)
+                int64_t ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, target_id);
+                if (ret < 0)
                 {
                     perror("Failed in send_discover_message\n");
                     return false;
                 }
+                ri->discover_ids[i] = ret;
             }
         }
     }
@@ -339,28 +400,35 @@ static bool parse_route(Node *node, message *msg, short from_fd)
     {
         perror("NULL args in parse_route");
     }
-    Route *route = (Route *)msg->payload;
-    bool res = NODE_add_route(node, route);
+    SerializedRoute *serialized_route = (SerializedRoute *)msg->payload;
+    Route route;
+    bool ret = ROUTE_desirialize(serialized_route, &route);
+    // printf("DEBUG 00\n");
+    bool res = NODE_add_route(node, &route);
     if (!res)
     {
         perror("Failed in adding route..\n");
         return false;
     }
-
-    RoutingInfo *ri = NODE_get_route_info(node, route->og_id);
+    RoutingInfo *ri = NODE_get_route_info(node, route.og_id);
     if (ri == NULL)
     {
         perror("Failed in NODE_get_route_info\n");
         return false;
     }
     // TODO AFTER I FINISH WITH DISCOVER
+    ri->responds_got++;
+    ri->routes_got++;
+    printf("ri->src_node_id: %d\n", ri->src_node_id);
     if (ri->src_node_id == node->id)
     {
+        printf("handle me1\n");
         if (ri->responds_got == node->neighbors_count)
         {
+            printf("debug 1\n");
+
             //got all the route and nacks back
             //choose the best route
-            //build the relay message
             Route *best = NODE_choose_route(ri->routes, ri->routes_got);
             printf("I need to send my message to: %d\n", *best->nodes_ids);
         }
@@ -368,20 +436,31 @@ static bool parse_route(Node *node, message *msg, short from_fd)
 
     else
     {
-        bool ret = add_myself_to_route(node->id, msg);
+        // printf("debug 2\n");
+
+        bool ret = add_myself_to_route(node->id, &route);
         if (!ret)
         {
             perror("failed in add_myself_to_route\n");
             return false;
         }
-        short dst_sock = Neghibor_get_sock_by_id(node->neighbors, node->neighbors_count, ri->src_node_id);
-        ret = send_route_message(dst_sock, node->id, ri->src_node_id, (Route *)msg->payload);
+        // printf("debug 2.1\n");
+
+        short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, ri->src_node_id);
+        if (dst_sock < 0)
+        {
+            perror("No such neighbor\n");
+            return false;
+        }
+        ret = send_route_message(dst_sock, node->id, ri->src_node_id, &route);
         if (!ret)
         {
             perror("failed in send_route_message\n");
             return false;
         }
+        // printf("debug 2.2\n");
     }
+    return true;
 }
 
 static bool parse_send(Node *node, message *msg)

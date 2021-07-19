@@ -149,7 +149,7 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
         perror("NULL args in NODE_send");
         return false;
     }
-    short dst_sock = Neghibor_get_sock_by_id(node->neighbors, node->neighbors_count, id);
+    short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, id);
     if (dst_sock == -1) // routing...
     {
         if (node->neighbors_count > 0)
@@ -172,9 +172,10 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
             }
             for (int i = 0; i < node->neighbors_count; i++)
             {
-                bool ret = send_discover_message(node->neighbors[i].connection, node->id,
-                                                 node->neighbors[i].id, id);
-                if (!ret)
+
+                int64_t ret = send_discover_message(node->neighbors[i].connection, node->id,
+                                                    node->neighbors[i].id, id);
+                if (ret < 0)
                 {
                     perror("Failed in send_discover_message");
                 }
@@ -199,7 +200,7 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
     return true;
 }
 
-short Neghibor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id)
+short Neighbor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id)
 {
     if (nodes == NULL)
     {
@@ -214,21 +215,21 @@ Exit:
     return -1;
 }
 
-Node *NODE_get_by_id(Node *nodes, int32_t id)
-{
-    if (nodes == NULL)
-    {
-        perror("NULL args in NODE_get_by_id\n");
-        goto Exit;
-    }
-    for (size_t i = 0; i < NUMBER_OF_NODES; i++)
-    {
-        if (nodes[i].id == id)
-            return &nodes[i];
-    }
-Exit:
-    return NULL;
-}
+// Neighbor *NODE_get_neghibor_by_id(Node *node, int32_t id)
+// {
+//     if (node == NULL)
+//     {
+//         perror("NULL args in NODE_get_by_id\n");
+//         goto Exit;
+//     }
+//     for (size_t i = 0; i < node->neighbors_count; i++)
+//     {
+//         if (node->neighbors[i].id == id)
+//             return &node[i];
+//     }
+// Exit:
+//     return NULL;
+// }
 
 bool NODE_route(Node *node, int32_t id)
 {
@@ -244,16 +245,31 @@ bool NODE_route(Node *node, int32_t id)
     }
     for (int i = 0; i < node->neighbors_count; i++)
     {
-        bool ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, id);
-        if (!ret)
+        node->routing_count++;
+        node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
+        RoutingInfo *ri = &node->my_routing[node->routing_count - 1];
+        ri->src_node_id = node->id;
+        ri->og_id = 0;
+        ri->responds_got = 0;
+        ri->routes_got = 0;
+        ri->routes = NULL;
+        ri->discover_ids = NULL;
+        ri->discover_ids = (int32_t *)malloc(node->neighbors_count * sizeof(int32_t));
+
+        for (int i = 0; i < node->neighbors_count; i++)
         {
-            perror("Failed in sending discover msg\n");
-            goto Exit;
+            int64_t ret = send_discover_message(node->neighbors[i].connection, node->id, node->neighbors[i].id, id);
+            if (ret < 0)
+            {
+                perror("Failed in send_discover_message\n");
+                return false;
+            }
+            ri->discover_ids[i] = ret;
         }
+        return true;
+    Exit:
+        return false;
     }
-    return true;
-Exit:
-    return false;
 }
 
 int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t fd)
@@ -289,9 +305,7 @@ size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 
 bool NODE_disconnect_neighbor(Node *node, short fd)
 {
-    /*
-ADD HERE REMOVE FROM REACTOR!!!
-*/
+    remove_fd_from_monitoring(fd);
     if (node == NULL)
     {
         perror("Null args in NODE_disconnect_neighbor");
@@ -340,36 +354,29 @@ bool NODE_add_route(Node *node, Route *new_route)
     }
     bool added = false;
 
-    if (node->routing_count == 0)
-    {
-        node->routing_count++;
-        node->my_routing = malloc(sizeof(RoutingInfo));
-        node->my_routing[0].og_id = new_route->og_id;
-        node->my_routing[0].routes_got++;
-        node->my_routing[0].responds_got++;
-        node->my_routing[0].routes = malloc(sizeof(Route));
-        node->my_routing[0].routes[0].nodes_ids = malloc(sizeof(int32_t) * new_route->route_len);
-        memcpy(&node->my_routing[0].routes[0], new_route, (sizeof(new_route))); //need to check
-    }
-
     for (int i = 0; i < node->routing_count; i++) // serach for exsiting og_id
     {
         if (node->my_routing[i].og_id == new_route->og_id)
         {
+            // printf("DEBUG 02\n");
             node->my_routing[i].routes_got++;
             node->my_routing[i].responds_got++;
-            node->my_routing = realloc(node->my_routing[i].routes, node->my_routing[i].routes_got);
+            node->my_routing[i].routes = realloc(node->my_routing[i].routes, node->my_routing[i].routes_got * sizeof(Route));
             node->my_routing[i].routes[node->my_routing[i].routes_got - 1].og_id = new_route->og_id;
             node->my_routing[i].routes[node->my_routing[i].routes_got - 1].route_len = new_route->route_len;
-            memcpy(&node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
+            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids = (int32_t *)malloc(sizeof(int32_t) * new_route->route_len);
+            memcpy(node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
                    new_route->nodes_ids, (sizeof(int32_t) * new_route->route_len));
             added = true;
             break;
         }
     }
-    if (!added) /* new routing */
+
+    if (!added) /* new routing info*/
     {
+        // printf("DEBUG 03\n");
         node->routing_count++;
+        printf("node routing count: %d\n", node->routing_count);
         node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
         node->my_routing[node->routing_count - 1].og_id = new_route->og_id;
         node->my_routing[node->routing_count - 1].responds_got = 1;
@@ -377,9 +384,14 @@ bool NODE_add_route(Node *node, Route *new_route)
         node->my_routing[node->routing_count - 1].routes = malloc(sizeof(Route) * new_route->route_len);
         node->my_routing[node->routing_count - 1].routes->og_id = new_route->og_id;
         node->my_routing[node->routing_count - 1].routes->route_len = new_route->route_len;
+        node->my_routing[node->routing_count - 1].routes[0].nodes_ids = (int32_t *)malloc(new_route->route_len * sizeof(int32_t));
         memcpy(node->my_routing[node->routing_count - 1].routes->nodes_ids, new_route->nodes_ids, sizeof(int32_t) * new_route->route_len);
+        // printf("debig 031\n");
         added = true;
+        // }
     }
+    // printf("DEBUG 04\n");
+
     return true;
 }
 
@@ -413,4 +425,13 @@ Route *NODE_choose_route(Route *routes, size_t len)
         }
     }
     return &routes[index];
+}
+
+bool ROUTE_desirialize(SerializedRoute *serialized_route, Route *route)
+{
+    route->og_id = serialized_route->og_id;
+    route->route_len = serialized_route->route_len;
+    route->nodes_ids = (int32_t *)malloc(route->route_len * sizeof(int32_t));
+    memcpy(route->nodes_ids, serialized_route->nodes_ids, route->route_len * sizeof(int32_t));
+    return true;
 }
