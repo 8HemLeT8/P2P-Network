@@ -17,7 +17,7 @@ bool NODE_init(Node *node, uint32_t port)
         perror("NULL args in NODE_init");
         return false;
     }
-    node->neighbors_count = 0;
+    node->neighbors_count = 0; //initiate all the NODE fields
     node->neighbors = NULL;
     node->routing_count = 0;
     node->my_routing = NULL;
@@ -25,7 +25,7 @@ bool NODE_init(Node *node, uint32_t port)
     node->connect_sent.ids = NULL;
     node->id = port;
 
-    int32_t sock = socket(AF_INET, SOCK_STREAM, 0);
+    int32_t sock = socket(AF_INET, SOCK_STREAM, 0); //create the socket
     if (sock == -1)
     {
         printf("socket creation failed...\n");
@@ -55,7 +55,7 @@ bool NODE_init(Node *node, uint32_t port)
     printf("port: %d is listening..\n", port);
 }
 
-bool NODE_setid(Node *node, int32_t id)
+bool NODE_setid(Node *node, int32_t id) //set my nodes ID
 {
     if (node == NULL)
     {
@@ -64,9 +64,10 @@ bool NODE_setid(Node *node, int32_t id)
     }
     current_id = id;
     node->id = id;
+    printf("ACK\n");
     return true;
 }
-bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id)
+bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id) //search for neighbors ID
 {
     if (nodes == NULL)
     {
@@ -98,10 +99,7 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         perror("NULL args in NODE_connect");
         return false;
     }
-
-    // NODE_add_neighbor(src_node, -1, src_sock_fd, );
-
-    src_node->neighbors_count++;
+    src_node->neighbors_count++; //Add the new connection as a neighbor and set its socket,port and ip
     src_node->neighbors = realloc(src_node->neighbors, src_node->neighbors_count * sizeof(Neighbor));
     short *src_sock_fd = &src_node->neighbors[src_node->neighbors_count - 1].connection;
     src_node->neighbors[src_node->neighbors_count - 1].ip_addr = inet_addr(dst_ip);
@@ -114,20 +112,20 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
         return false;
     }
 
-    struct sockaddr_in dst;
-    dst.sin_addr.s_addr = inet_addr(dst_ip);
-    dst.sin_port = htons(dst_port);
-    dst.sin_family = AF_INET;
+    struct sockaddr_in dst;                  //the destination I connect to..
+    dst.sin_addr.s_addr = inet_addr(dst_ip); //ip address convertion
+    dst.sin_port = htons(dst_port);          //set the port
+    dst.sin_family = AF_INET;                //socket of type IPv4
     int8_t ret = connect(*src_sock_fd, (struct sockaddr *)&dst, sizeof(dst));
     if (ret == -1)
     {
         perror("Error in connect\n");
-        NODE_disconnect_neighbor(src_node, *src_sock_fd);
+        NODE_disconnect_neighbor(src_node, *src_sock_fd); //if the connection failed, close the socket and delete the neighbor..
         return false;
     }
 
-    add_fd_to_monitoring(*src_sock_fd);
-    int32_t msg_id = send_connect_message(*src_sock_fd, src_node->id);
+    add_fd_to_monitoring(*src_sock_fd);                                //add the new created socket to the Reactor
+    int32_t msg_id = send_connect_message(*src_sock_fd, src_node->id); //send connection message to the destination
     if (msg_id < 0)
     {
         perror("Failed at send_connect_message\n");
@@ -142,54 +140,39 @@ bool NODE_connect(Node *src_node, char *dst_ip, uint32_t dst_port)
     return true;
 }
 
-bool NODE_send(Node *node, int32_t id, uint32_t len, char *data)
+bool NODE_send(Node *node, int32_t id, uint32_t len, char *data) //TODO - use the routing to build the RELAY message
 {
     if (node == NULL || data == NULL)
     {
         perror("NULL args in NODE_send");
         return false;
     }
-    short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, id);
-    if (dst_sock == -1) // routing...
+    short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, id); //try to get destination socket
+    if (dst_sock == -1)                                                                   // routing...
     {
         if (node->neighbors_count > 0)
         {
+            if (id == node->id) //sending message in loopback (To myself)
+            {
+                perror("Can not send to myself\n no socket found!\n");
+            }
             printf("No such neighbor, discovering...\n");
 
-            message *msg = malloc(sizeof(message));
-            memcpy(msg, data, len);
-            bool res = message_check_format(msg);
-            if (!res)
-            {
-                perror("BAD MESSAGE FORMAT");
-                return false;
-            }
-            msg = (message *)data;
-            if (msg->dst_id == node->id)
-            {
-                printf("SENT MSG TO MYSELF..?..\n");
-                /* add logic? */
-            }
-            for (int i = 0; i < node->neighbors_count; i++)
-            {
-
-                int64_t ret = send_discover_message(node->neighbors[i].connection, node->id,
-                                                    node->neighbors[i].id, id);
-                if (ret < 0)
-                {
-                    perror("Failed in send_discover_message");
-                }
-            }
+            Route send_to;
+            // NODE_route(node, id);
+            /**
+             *  Build Relay message using send_to route and data payload...
+             *  Send...
+             */
         }
         else
         {
-            perror("No neghibors found!\n");
+            perror("No neghibors found!\n"); //If no neighbors to route to
             return false;
         }
     }
-    else
+    else // Sending to my neighbor
     {
-        printf("sent in sock %d\n", dst_sock);
         bool ret = send_message(dst_sock, node->id, id, len, data);
         if (!ret)
         {
@@ -209,27 +192,11 @@ short Neighbor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id)
     for (size_t i = 0; i < size; i++)
     {
         if (nodes[i].id == id)
-            return nodes[i].connection;
+            return nodes[i].connection; //return socket connection of Neighbor with id=id
     }
 Exit:
     return -1;
 }
-
-// Neighbor *NODE_get_neghibor_by_id(Node *node, int32_t id)
-// {
-//     if (node == NULL)
-//     {
-//         perror("NULL args in NODE_get_by_id\n");
-//         goto Exit;
-//     }
-//     for (size_t i = 0; i < node->neighbors_count; i++)
-//     {
-//         if (node->neighbors[i].id == id)
-//             return &node[i];
-//     }
-// Exit:
-//     return NULL;
-// }
 
 bool NODE_route(Node *node, int32_t id)
 {
@@ -243,7 +210,7 @@ bool NODE_route(Node *node, int32_t id)
         perror("Cant route... no neighbors\n");
         goto Exit;
     }
-    node->routing_count++;
+    node->routing_count++; //Create new RoutingInfo
     node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
     RoutingInfo *ri = &node->my_routing[node->routing_count - 1];
     ri->src_node_id = node->id;
@@ -252,7 +219,7 @@ bool NODE_route(Node *node, int32_t id)
     ri->routes_got = 0;
     ri->routes = NULL;
     ri->discover_ids = NULL;
-    ri->discover_ids = (int32_t *)malloc(node->neighbors_count * sizeof(int32_t));
+    ri->discover_ids = (int32_t *)malloc(node->neighbors_count * sizeof(int32_t)); //the discover messages ids
 
     for (int i = 0; i < node->neighbors_count; i++)
     {
@@ -262,7 +229,7 @@ bool NODE_route(Node *node, int32_t id)
             perror("Failed in send_discover_message\n");
             return false;
         }
-        ri->discover_ids[i] = ret;
+        ri->discover_ids[i] = ret; //save the discover messages ids to count the nacks responses
     }
     return true;
 Exit:
@@ -273,7 +240,7 @@ int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t f
 {
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(struct sockaddr_in);
-    int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size);
+    int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size); //get the ip & port from a socket
     int32_t port = ntohs(addr.sin_port);
 
     for (int i = 0; i < len; i++)
@@ -300,7 +267,7 @@ size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 
 bool NODE_disconnect_neighbor(Node *node, short fd)
 {
-    remove_fd_from_monitoring(fd);
+    remove_fd_from_monitoring(fd); //remove from the reactor...
     if (node == NULL)
     {
         perror("Null args in NODE_disconnect_neighbor");
@@ -312,12 +279,12 @@ bool NODE_disconnect_neighbor(Node *node, short fd)
         perror("Failed to find neighbor\n");
         return false;
     }
-    if ((--node->neighbors_count) <= 0)
+    if ((--node->neighbors_count) <= 0) //if last neighbor disconnected
     {
         free(node->neighbors);
     }
     else
-    {
+    { //removing neighbor from Neighbors array
         Neighbor *temp_arr = (Neighbor *)malloc(node->neighbors_count * sizeof(Neighbor));
         for (int j = 0; j < to_rm; j++)
         {
@@ -328,17 +295,26 @@ bool NODE_disconnect_neighbor(Node *node, short fd)
             memcpy(&temp_arr[k], &node->neighbors[k], sizeof(Neighbor));
         }
         printf("closing connection...\n");
-        close(node->neighbors[to_rm].connection);
+        close(node->neighbors[to_rm].connection); //close the socket
         free(node->neighbors);
+        if (node->routing_count > 0) //free all the allocated RouteInfo
+        {
+            if (node->my_routing->routes_got > 0)
+            {
+                for (int i = 0; i < node->routing_count; i++)
+                {
+                    free(node->my_routing[i].routes); //free all the allocated routes..
+                }
+            }
+            free(node->my_routing);
+        }
         node->neighbors = temp_arr;
     }
     printf("Removed fd %d\n", fd);
     return true;
 }
 /**
- * check if it is a route message
  * find the route og_id and add to it the route
- * 
  */
 
 bool NODE_add_route(Node *node, Route *new_route)
@@ -359,7 +335,7 @@ bool NODE_add_route(Node *node, Route *new_route)
             node->my_routing[i].routes = realloc(node->my_routing[i].routes, node->my_routing[i].routes_got * sizeof(Route));
             node->my_routing[i].routes[node->my_routing[i].routes_got - 1].og_id = new_route->og_id;
             node->my_routing[i].routes[node->my_routing[i].routes_got - 1].route_len = new_route->route_len;
-            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids = (int32_t *)calloc(sizeof(int32_t), new_route->route_len);
+            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids = (int32_t *)calloc(sizeof(int32_t), new_route->route_len); //like malloc just with initialization to 0s
             memcpy(node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
                    new_route->nodes_ids, (sizeof(int32_t) * new_route->route_len));
             added = true;
@@ -379,10 +355,8 @@ bool NODE_add_route(Node *node, Route *new_route)
         node->my_routing[node->routing_count - 1].routes->route_len = new_route->route_len;
         node->my_routing[node->routing_count - 1].routes[0].nodes_ids = (int32_t *)malloc(new_route->route_len * sizeof(int32_t));
         memcpy(node->my_routing[node->routing_count - 1].routes->nodes_ids, new_route->nodes_ids, sizeof(int32_t) * new_route->route_len);
-        // printf("debig 031\n");
         added = true;
     }
-    // printf("I have added ri number %d\n", ri.);
 
     return true;
 }
@@ -397,9 +371,9 @@ RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id)
     for (int i = 0; i < node->routing_count; i++)
     {
         if (node->my_routing[i].og_id = route_id || node->my_routing[i].og_id == 0)
-        { // og_id = 0 in the case that the route is a cli command!
-            node->my_routing[i].og_id = route_id;
-            return &node->my_routing[i];
+        {                                         // og_id = 0 in the case that the route is a cli command!
+            node->my_routing[i].og_id = route_id; //change the 0 to the real og_id
+            return &node->my_routing[i];          //return RoutingInfo
         }
     }
     return NULL;

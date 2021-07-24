@@ -286,12 +286,12 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
             if (node->my_routing[i].discover_ids[j] == id_for)
             {
                 node->my_routing[i].responds_got++;
-                if (node->my_routing[i].responds_got == node->neighbors_count)
-                {
+                if (node->my_routing[i].responds_got == node->neighbors_count-1) //If I got all the responses, send the next message
+                { //-1 because Im not waiting for a response from the original sender
                     int32_t dst_node_id = node->my_routing[i].src_node_id;
                     short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, dst_node_id);
                     //got all responses for this discover
-                    if (node->my_routing[i].routes_got = 0)
+                    if (node->my_routing[i].routes_got == 0)
                     {
                         return send_nack_message(dst_sock, node->id, dst_node_id, node->my_routing->og_id);
                     }
