@@ -290,8 +290,6 @@ size_t NODE_get_neighbor_index_by_fd(Node *node, short fd)
 {
     for (int i = 0; i < node->neighbors_count; i++)
     {
-        // printf("neighbor fd is %d, but i need %d\n", node->neighbors[i].connection, fd);
-
         if (node->neighbors[i].connection == fd)
         {
             return i;
@@ -355,7 +353,6 @@ bool NODE_add_route(Node *node, Route *new_route)
     {
         if (node->my_routing[i].og_id == new_route->og_id || node->my_routing[i].og_id == 0) // 0 is if the route started from the cli
         {
-            printf("DEBUG 02\n");
             node->my_routing[i].og_id = new_route->og_id;
             node->my_routing[i].routes_got++;
             node->my_routing[i].responds_got++;
@@ -365,7 +362,6 @@ bool NODE_add_route(Node *node, Route *new_route)
             node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids = (int32_t *)calloc(sizeof(int32_t), new_route->route_len);
             memcpy(node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
                    new_route->nodes_ids, (sizeof(int32_t) * new_route->route_len));
-            printf("TEST: %d\n", node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids[0]);
             added = true;
             break;
         }
@@ -373,7 +369,6 @@ bool NODE_add_route(Node *node, Route *new_route)
 
     if (!added) /* new routing info*/
     {
-        printf("DEBUG 03\n");
         node->routing_count++;
         node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
         node->my_routing[node->routing_count - 1].og_id = new_route->og_id;
@@ -431,7 +426,6 @@ bool NODE_choose_route(Route *routes, size_t len, Route *best)
     best->route_len = routes[index].route_len;
     best->nodes_ids = (int32_t *)malloc(sizeof(int32_t) * best->route_len);
     memcpy(best->nodes_ids, routes[index].nodes_ids, best->route_len * sizeof(int32_t));
-    printf("in choose route, best is %d\n", best->og_id);
     return true;
 }
 

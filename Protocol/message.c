@@ -48,10 +48,9 @@ static void debug_print_message(message *msg)
         for (int i = 0; i < r->route_len; i++)
         {
             if (i < r->route_len - 1)
-            {
-                printf("i=%d, %d -> ", i, r->nodes_ids[i]);
-            }
-            printf("i=%d, %d\n", i, r->nodes_ids[i]);
+                printf("%d->", r->nodes_ids[i]);
+            else
+                printf("%d\n", r->nodes_ids[i]);
         }
     }
     else
@@ -323,7 +322,7 @@ static bool parse_connect(Node *node, message *msg, int32_t fd)
     int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size);
     int32_t port = ntohs(addr.sin_port);
 
-    node->neighbors[new_neighbor_index].port = port;
+    node->neighbors[new_neighbor_index].port = port; //Add neighbor fields
     node->neighbors[new_neighbor_index].id = msg->src_id;
     node->neighbors[new_neighbor_index].ip_addr = addr.sin_addr.s_addr;
 
@@ -344,7 +343,7 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
     Neighbor *got_from = &node->neighbors[NODE_get_neighbor_index_by_fd(node, from_fd)];
     if (node->id == target_id) // IF IM the discover destination
     {
-        printf("IM THE TATGET!!\n");
+        // printf("IM THE TATGET!!\n");
         Route route;
         route.og_id = msg->msg_id;
         route.route_len = 1;
@@ -396,6 +395,21 @@ static bool parse_discover(Node *node, message *msg, short from_fd)
     return true;
 }
 
+void print_route(Route *route)
+{
+    for (int i = 0; i < route->route_len; i++)
+    {
+        if (i < route->route_len - 1)
+        {
+            printf("%d->", route->nodes_ids[i]);
+        }
+        else
+        {
+            printf("%d\n", route->nodes_ids[i]);
+        }
+    }
+}
+
 static bool parse_route(Node *node, message *msg, short from_fd, Route *best_route)
 {
     if (node == NULL || msg == NULL)
@@ -419,26 +433,19 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
         return false;
     }
     // TODO AFTER I FINISH WITH DISCOVER
-
-    printf("ri->src_node_id: %d\n", ri->src_node_id);
     if (ri->src_node_id == node->id)
     {
-        printf("handle me1\n");
         if (ri->responds_got == node->neighbors_count)
         {
-            printf("debug 1\n");
-
             //got all the route and nacks back
             //choose the best route
             ret = NODE_choose_route(ri->routes, ri->routes_got, best_route);
-            printf("debug 2\n");
-
             if (!ret)
             {
                 perror("Failed in NODE_choose_route\n");
                 return false;
             }
-            printf("I need to send my message to: %d\n", best_route->nodes_ids[0]);
+            print_route(best_route);
             return best_route;
         }
     }

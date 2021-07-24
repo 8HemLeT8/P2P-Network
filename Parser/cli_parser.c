@@ -108,7 +108,6 @@ bool check_connect(Node *node, char *string)
     if (port_str == NULL)
         return false;
     port = atoi(port_str);
-    // printf("ip: %s | port: %d \n", ip, port);
     success = NODE_connect(node, ip, port);
 Exit:
     return success;
