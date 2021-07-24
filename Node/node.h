@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <netinet/in.h>
+#include "../Route/Route.h"
 typedef struct neighbor
 {
     int32_t id;
@@ -10,19 +11,6 @@ typedef struct neighbor
     uint32_t port;
 } Neighbor;
 
-typedef struct route
-{
-    int32_t og_id; //for easy convertion of payload to route
-    int32_t route_len;
-    int32_t *nodes_ids; //the route itself
-} Route;
-
-typedef struct serialized_route
-{
-    int32_t og_id; //for easy convertion of payload to route
-    int32_t route_len;
-    int32_t nodes_ids[]; //the route itself
-} SerializedRoute;
 typedef struct routing_now
 {
     int32_t og_id; //original discover message id
@@ -66,5 +54,4 @@ short Neighbor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id);
 bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id);
 
 bool NODE_add_route(Node *node, Route *route);
-bool NODE_choose_route(Route *routes, size_t len, Route *best);
-bool ROUTE_desirialize(SerializedRoute *serialized_route, Route *route);
+

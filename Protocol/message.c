@@ -174,14 +174,26 @@ bool send_ack_message(short sock, int32_t src_node_id, int32_t current_node, int
 {
     message msg;
     create_ack_message(src_node_id, current_node, payload, &msg);
-    send(sock, &msg, sizeof(message), 0);
+    int32_t ret = send(sock, &msg, sizeof(message), 0);
+    if (ret < 0)
+        return false;
+    return true;
 }
 
 bool send_nack_message(short sock, int32_t src_node_id, int32_t current_node, int32_t payload)
 {
     message msg;
-    create_nack_message(src_node_id, current_node, payload, &msg);
-    send(sock, &msg, sizeof(message), 0);
+    bool ret;
+    ret = create_nack_message(src_node_id, current_node, payload, &msg);
+    if (!ret)
+    {
+        perror("Failed in create_nack_message\n");
+        return false;
+    }
+    int32_t res = send(sock, &msg, sizeof(message), 0);
+    if (res < 0)
+        return false;
+    return true;
 }
 
 int64_t send_discover_message(short sock, int32_t src_id, int32_t dst_id, int32_t target_id)
@@ -202,7 +214,7 @@ bool send_route_message(short sock, int32_t src_node_id, int32_t dst_node_id, Ro
     printf("send route message to %d\n", dst_node_id);
     create_route_message(src_node_id, dst_node_id, route, &msg);
     int32_t ret = send(sock, &msg, sizeof(message), 0);
-    debug_print_message(&msg);
+    // debug_print_message(&msg);
     if (ret < 0)
         return false;
     return true;
@@ -418,8 +430,7 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
     }
     SerializedRoute *serialized_route = (SerializedRoute *)msg->payload;
     Route route;
-    bool ret = ROUTE_desirialize(serialized_route, &route);
-    // printf("DEBUG 00\n");
+    bool ret = ROUTE_desirialize(serialized_route, &route); // convert msg payload to Route struct
     bool res = NODE_add_route(node, &route);
     if (!res)
     {
@@ -432,8 +443,7 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
         perror("Failed in NODE_get_route_info\n");
         return false;
     }
-    // TODO AFTER I FINISH WITH DISCOVER
-    if (ri->src_node_id == node->id)
+    if (ri->src_node_id == node->id) //If I started to routing
     {
         if (ri->responds_got == node->neighbors_count)
         {
@@ -450,18 +460,14 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
         }
     }
 
-    else
+    else //routing through me...
     {
-        // printf("debug 2\n");
-
         bool ret = add_myself_to_route(node->id, &route);
         if (!ret)
         {
             perror("failed in add_myself_to_route\n");
             return false;
         }
-        // printf("debug 2.1\n");
-
         short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, ri->src_node_id);
         if (dst_sock < 0)
         {
