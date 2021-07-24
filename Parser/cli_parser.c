@@ -3,6 +3,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+/**
+ * Parse the CLI input for the function and the parameters
+ * Call the corresponding function
+ */
 int32_t parse_check_run(Node *node, char *input)
 {
     if (node == NULL || input == NULL)
@@ -11,7 +15,7 @@ int32_t parse_check_run(Node *node, char *input)
         goto Exit;
     }
     bool success = true;
-    char *chunk = strtok(input, COMMA);
+    char *chunk = strtok(input, COMMA); //get the function
     if (strncmp(input, "peers", 5) == 0)
     {
         success = check_peers(node);
@@ -93,9 +97,7 @@ bool check_connect(Node *node, char *string)
         perror("NULL ARGS IN check_connect");
         goto Exit;
     }
-    struct sockaddr_in sa;
     char *ip = {0};
-    int32_t ret = 0;
     uint32_t port = 0;
     bool success = false;
 
@@ -104,7 +106,7 @@ bool check_connect(Node *node, char *string)
     {
         return false;
     }
-    char *port_str = strtok(NULL, COLON);
+    char *port_str = strtok(NULL, COLON); //parse the input for each argument
     if (port_str == NULL)
         return false;
     port = atoi(port_str);
@@ -141,7 +143,7 @@ bool check_route(Node *node, char *string)
         goto Exit;
     }
     bool success = false;
-    int32_t id = atoi(strtok(NULL, COMMA));
+    int32_t id = atoi(strtok(NULL, COMMA)); // get the id from ascii to int
     if (NULL != strtok(NULL, COMMA))
     {
         return false;

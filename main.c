@@ -20,25 +20,24 @@ int32_t main(int argc, char *argv[])
         return -1;
     }
     PORT = atoi(argv[1]);
-    signal(SIGINT, clean);
+    signal(SIGINT, clean); // If ctrl+C is pressed, goto clean
     /* init node */
     Node node;
     NODE_init(&node, PORT);
-    add_fd_to_monitoring(node.sock);
+    add_fd_to_monitoring(node.sock); // Add the listening fd to the reactor
 
     printf("current node is: %d\n", current_id);
     printf("Please enter your scommand: \n");
     while (true)
     {
-        int32_t ready_fd = wait_for_input();
+        int32_t ready_fd = wait_for_input(); // Reactors select function
         if (ready_fd == -1)
         {
-            perror("");
             return -1;
         }
         else
         {
-            handle(ready_fd, &node);
+            handle(ready_fd, &node); //Handle the ready FD for current Node
         }
     }
     printf("Error occured!!\n");

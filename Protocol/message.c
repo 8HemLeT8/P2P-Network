@@ -8,6 +8,9 @@
 
 static uint32_t id = 0;
 
+/**
+ * Check the fields of the packet, currently not used.
+ */
 bool message_check_format(message *msg)
 {
     if (msg->dst_id < 0)
@@ -23,7 +26,9 @@ bool message_check_format(message *msg)
 
     return true;
 }
-
+/**
+ * pretty print of a message... used for debugging packets
+ */
 static void debug_print_message(message *msg)
 {
     printf("~~~~~ DEBUG ~~~~~\n");
@@ -152,10 +157,12 @@ bool send_message(short sock, int32_t src_id, int32_t dst_id, size_t len, char *
     return true;
 }
 
+/**
+ * Add my ID to the given route.
+ */
 bool add_myself_to_route(int32_t my_id, Route *route)
 {
     route->route_len++;
-    //change the value in the message payload
     route->nodes_ids = (int32_t *)realloc(route->nodes_ids, route->route_len * sizeof(int32_t));
     route->nodes_ids[route->route_len - 1] = my_id; //add my id in the last position
     return true;
@@ -228,7 +235,7 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
         return false;
     }
     printf("ACK\n");
-    for (int i = 0; i < node->connect_sent.amount; i++)
+    for (int i = 0; i < node->connect_sent.amount; i++) // check if it is an ack for connect message
     {
         if (node->connect_sent.ids[i] == (msg->payload)[0])
         {
@@ -261,7 +268,7 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
             return true;
         }
     }
-    else
+    else //Ack not for my ID, what?
     {
         printf("dst id is: %d but my id is: %d\n", msg->dst_id, node->id);
         return false;
@@ -286,17 +293,17 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
             if (node->my_routing[i].discover_ids[j] == id_for)
             {
                 node->my_routing[i].responds_got++;
-                if (node->my_routing[i].responds_got == node->neighbors_count-1) //If I got all the responses, send the next message
-                { //-1 because Im not waiting for a response from the original sender
+                if (node->my_routing[i].responds_got == node->neighbors_count - 1) //If I got all the responses, send the next message
+                {                                                                  //-1 because Im not waiting for a response from the original sender
                     int32_t dst_node_id = node->my_routing[i].src_node_id;
                     short dst_sock = Neighbor_get_sock_by_id(node->neighbors, node->neighbors_count, dst_node_id);
                     //got all responses for this discover
                     if (node->my_routing[i].routes_got == 0)
-                    {
+                    { //send a nack to the routing source node
                         return send_nack_message(dst_sock, node->id, dst_node_id, node->my_routing->og_id);
                     }
                     else
-                    {
+                    { //I got all the discover responses... choose route and send a route message.
                         Route *r;
                         ret = NODE_choose_route(node->my_routing[i].routes, node->my_routing[i].routes_got, r);
                         if (!ret)
@@ -317,7 +324,10 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
         }
     }
 }
-
+/**
+ * Parse the connect message and add to myself a new Neighbor with the id from the msg.src_id
+ * Save the Neighbors IP, Port, and connection that was created by the accept function!
+ */
 static bool parse_connect(Node *node, message *msg, int32_t fd)
 {
     if (node == NULL || msg == NULL)
@@ -331,7 +341,7 @@ static bool parse_connect(Node *node, message *msg, int32_t fd)
 
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(struct sockaddr_in);
-    int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size);
+    int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size); // get the ip and port from a socket
     int32_t port = ntohs(addr.sin_port);
 
     node->neighbors[new_neighbor_index].port = port; //Add neighbor fields
