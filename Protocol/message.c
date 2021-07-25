@@ -440,7 +440,7 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
     }
     SerializedRoute *serialized_route = (SerializedRoute *)msg->payload;
     Route route;
-    bool ret = ROUTE_desirialize(serialized_route, &route); // convert msg payload to Route struct
+    bool ret = ROUTE_deserialize(serialized_route, &route); // convert msg payload to Route struct
     bool res = NODE_add_route(node, &route);
     if (!res)
     {

@@ -152,7 +152,7 @@ bool check_route(Node *node, char *string)
 Exit:
     return success;
 }
-bool check_peers(Node *node)
+bool check_peers(Node *node) // print all my current neighbors
 {
     if (node == NULL)
     {

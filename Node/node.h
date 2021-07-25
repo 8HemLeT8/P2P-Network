@@ -18,14 +18,14 @@ typedef struct routing_now
     size_t routes_got;
     Route *routes; //different routes got for the each og_id
     int32_t src_node_id;
-    int32_t *discover_ids;
+    int32_t *discover_ids; //discover messages Ids
 } RoutingInfo;
 
 typedef struct connect_info
 {
     size_t amount;
     int32_t *ids;
-} ConnectSent;
+} ConnectSent; //Keep track for the IDs of the connect messages IDs I sent
 
 typedef struct node
 {
@@ -54,4 +54,3 @@ short Neighbor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id);
 bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id);
 
 bool NODE_add_route(Node *node, Route *route);
-

@@ -18,4 +18,4 @@ typedef struct serialized_route
 } SerializedRoute;
 
 bool NODE_choose_route(Route *routes, size_t len, Route *best);
-bool ROUTE_desirialize(SerializedRoute *serialized_route, Route *route);
+bool ROUTE_deserialize(SerializedRoute *serialized_route, Route *route);
