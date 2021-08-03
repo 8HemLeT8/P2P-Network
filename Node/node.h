@@ -3,13 +3,7 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include "../Route/Route.h"
-typedef struct neighbor
-{
-    int32_t id;
-    short connection;
-    uint32_t ip_addr;
-    uint32_t port;
-} Neighbor;
+#include "../Neighbor/Neighbor.h"
 
 typedef struct routing_now
 {
@@ -48,9 +42,5 @@ bool NODE_add_neighbor(Node *node, int32_t id, int32_t fd);
 bool NODE_disconnect_neighbor(Node *node, short fd);
 size_t NODE_get_neighbor_index_by_fd(Node *node, short fd);
 RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id);
-
-int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, size_t len, int32_t fd);
-short Neighbor_get_sock_by_id(Neighbor *nodes, size_t size, int32_t id);
-bool Neighbor_exists(Neighbor *nodes, int32_t size, int32_t id);
 
 bool NODE_add_route(Node *node, Route *route);
