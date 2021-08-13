@@ -104,7 +104,7 @@ uint32_t create_discover_message(int32_t src_id, int32_t dst_id, int32_t target_
     msg->msg_id = id++;
     msg->src_id = src_id;
     msg->dst_id = dst_id;
-    msg->trailing_msg = 0; // TODO ??
+    msg->trailing_msg = 0; // This is not 0 only in data message
     msg->func_id = FUNC_ID_DISCOVER;
     memset(msg->payload, 0, sizeof(msg->payload));
     memcpy((int32_t *)msg->payload, &target_id, sizeof(int32_t));
@@ -127,22 +127,22 @@ bool create_route_message(int32_t src_id, int32_t dst_id, Route *route, message 
     return true;
 }
 
-bool create_send_message(int32_t src_id, int32_t dst_id, char *payload, int32_t len, message *msg)
+bool create_send_message(int32_t src_id, int32_t dst_id, char *payload, int32_t len, uint32_t chunk_num, message *msg)
 {
     msg->msg_id = id++;
     msg->src_id = src_id;
     msg->dst_id = dst_id;
-    msg->trailing_msg = 0; // TODO ??
+    msg->trailing_msg = chunk_num; //What chunk of data it this? - based on payload len
     msg->func_id = FUNC_ID_SEND;
     memset(msg->payload, 0, sizeof(msg->payload));
     memcpy(msg->payload, payload, len);
     return true;
 }
 
-bool send_message(short sock, int32_t src_id, int32_t dst_id, size_t len, char *data)
+bool send_message(short sock, int32_t src_id, int32_t dst_id, size_t len, char *data, uint32_t chunk_num)
 {
     message msg;
-    bool ret = create_send_message(src_id, dst_id, data, len, &msg);
+    bool ret = create_send_message(src_id, dst_id, data, len, chunk_num, &msg);
     if (!ret)
     {
         perror("Failed creating send message\n");
@@ -245,7 +245,6 @@ static bool parse_ack(Node *node, message *msg, int32_t from_fd)
             node->connect_sent.amount--;
             if (node->connect_sent.amount == 0)
             {
-
                 free(node->connect_sent.ids);
                 node->connect_sent.ids = NULL;
             }

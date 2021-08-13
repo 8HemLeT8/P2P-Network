@@ -148,6 +148,10 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data) //TODO - use th
             /**
              *  Build Relay message using send_to route and data payload...
              *  Send...
+             * 
+             * - If len > PAYLOAD_SIZE:
+             *  send in chunks using the trailing msg field!
+             * 
              */
         }
         else
@@ -158,11 +162,40 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data) //TODO - use th
     }
     else // Sending to my neighbor
     {
-        bool ret = send_message(dst_sock, node->id, id, len, data);
-        if (!ret)
+        if (len < PAYLOAD_SIZE)
+        { //send only 1 chunk
+            bool ret = send_message(dst_sock, node->id, id, len, data, 0);
+            if (!ret)
+            {
+                perror("Failed in send_message");
+                return false;
+            }
+        }
+        /**
+         * Split to chunks
+         */
+        else
         {
-            perror("Failed in send_message");
-            return false;
+            uint32_t chunk_num = 0;
+            uint32_t left_to_send_size = len;
+            while (left_to_send_size - PAYLOAD_SIZE > 0)
+            {
+                char *current_data = data + (chunk_num * PAYLOAD_SIZE); // each iteration send message with length of PAYLOAD_SIZE
+                bool ret = send_message(dst_sock, node->id, id, PAYLOAD_SIZE, current_data, chunk_num);
+                if (!ret)
+                {
+                    perror("Failed in send_message");
+                    return false;
+                }
+                left_to_send_size -= PAYLOAD_SIZE;
+                chunk_num++;
+            }
+            bool ret = send_message(dst_sock, node->id, id, left_to_send_size, data + (chunk_num * PAYLOAD_SIZE), chunk_num); // send the last chunk which is smaller then the payload size
+            if (!ret)
+            {
+                perror("Failed in send_message");
+                return false;
+            }
         }
     }
     return true;
