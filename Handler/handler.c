@@ -3,12 +3,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/socket.h>
-
+#include "select.h"
 #include "handler.h"
-#include "../Parser/cli_parser.h"
-#include "../Protocol/message.h"
-#include "../Reactor/select.h"
-#include "../Configuration/configuration.h"
+#include "message.h"
+#include "cli_parser.h"
+#include "configuration.h"
 
 bool handle(int32_t fd, Node *node) // Handle ready to read FD
 {

@@ -5,6 +5,9 @@
 #include "../Route/Route.h"
 #include "../Neighbor/Neighbor.h"
 
+#define NUMBER_OF_NODES (1)
+#define NODE_MAX_NEIGHBORS (10)
+#define NODES_IP ("127.0.0.1")
 typedef struct routing_now
 {
     int32_t og_id; //original discover message id
@@ -42,5 +45,7 @@ bool NODE_add_neighbor(Node *node, int32_t id, int32_t fd);
 bool NODE_disconnect_neighbor(Node *node, short fd);
 size_t NODE_get_neighbor_index_by_fd(Node *node, short fd);
 RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id);
-
 bool NODE_add_route(Node *node, Route *route);
+
+extern int32_t current_id;
+extern int32_t LISTENING_FD;

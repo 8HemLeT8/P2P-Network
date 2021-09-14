@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include <stdio.h>
-#include "../Configuration/configuration.h"
-#include "../Protocol/message.h"
-#include "../Reactor/select.h"
+#include "configuration.h"
+#include "message.h"
+#include "select.h"
 #include "node.h"
 
 bool NODE_init(Node *node, uint32_t port)
@@ -53,6 +53,7 @@ bool NODE_init(Node *node, uint32_t port)
     LISTENING_FD = node->sock;
     current_id = port;
     printf("port: %d is listening..\n", port);
+    return true;
 }
 
 bool NODE_setid(Node *node, int32_t id) //set my nodes ID
@@ -144,8 +145,10 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data) //TODO - use th
             printf("No such neighbor, discovering...\n");
 
             Route send_to;
-            // NODE_route(node, id);
+            // NODE_route(node, id, &send_to);
+
             /**
+             * send_relay_message(,,, &send_to);
              *  Build Relay message using send_to route and data payload...
              *  Send...
              * 
@@ -177,9 +180,10 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data) //TODO - use th
         else
         {
             uint32_t chunk_num = 0;
-            uint32_t left_to_send_size = len;
+            int32_t left_to_send_size = len;
             while (left_to_send_size - PAYLOAD_SIZE > 0)
             {
+                printf("current lefttodiz1e is %d, sending chunk...\n", left_to_send_size);
                 char *current_data = data + (chunk_num * PAYLOAD_SIZE); // each iteration send message with length of PAYLOAD_SIZE
                 bool ret = send_message(dst_sock, node->id, id, PAYLOAD_SIZE, current_data, chunk_num);
                 if (!ret)
@@ -187,9 +191,10 @@ bool NODE_send(Node *node, int32_t id, uint32_t len, char *data) //TODO - use th
                     perror("Failed in send_message");
                     return false;
                 }
-                left_to_send_size -= PAYLOAD_SIZE;
+                left_to_send_size -= 492;
                 chunk_num++;
             }
+            printf("sending %d bytes\n", left_to_send_size);
             bool ret = send_message(dst_sock, node->id, id, left_to_send_size, data + (chunk_num * PAYLOAD_SIZE), chunk_num); // send the last chunk which is smaller then the payload size
             if (!ret)
             {
@@ -309,42 +314,28 @@ bool NODE_add_route(Node *node, Route *new_route)
     {
         perror("NULL args in NODE_add_route\n");
     }
-    bool added = false;
-
     for (int i = 0; i < node->routing_count; i++) // serach for exsiting og_id
     {
-        if (node->my_routing[i].og_id == new_route->og_id || node->my_routing[i].og_id == 0) // 0 is if the route started from the cli
+        for (int j = 0; j < node->neighbors_count; j++)
         {
-            node->my_routing[i].og_id = new_route->og_id;
-            node->my_routing[i].routes_got++;
-            node->my_routing[i].responds_got++;
-            node->my_routing[i].routes = realloc(node->my_routing[i].routes, node->my_routing[i].routes_got * sizeof(Route));
-            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].og_id = new_route->og_id;
-            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].route_len = new_route->route_len;
-            node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids = (int32_t *)calloc(sizeof(int32_t), new_route->route_len); //like malloc just with initialization to 0s
-            memcpy(node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
-                   new_route->nodes_ids, (sizeof(int32_t) * new_route->route_len));
-            added = true;
-            break;
+            //find the message that the nack is for
+            if (node->my_routing[i].discover_ids[j] == new_route->og_id || node->my_routing[i].og_id == 0) // 0 is if the route started from the cli
+            {
+                // node->my_routing[i].og_id = new_route->og_id;
+                node->my_routing[i].routes_got++;
+                node->my_routing[i].responds_got++;
+                node->my_routing[i].routes = realloc(node->my_routing[i].routes, node->my_routing[i].routes_got * sizeof(Route));
+                node->my_routing[i].routes[node->my_routing[i].routes_got - 1].og_id = new_route->og_id;
+                node->my_routing[i].routes[node->my_routing[i].routes_got - 1].route_len = new_route->route_len;
+                node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids = (int32_t *)calloc(sizeof(int32_t), new_route->route_len); //like malloc just with initialization to 0s
+                memcpy(node->my_routing[i].routes[node->my_routing[i].routes_got - 1].nodes_ids,
+                       new_route->nodes_ids, (sizeof(int32_t) * new_route->route_len));
+                return true;
+            }
         }
     }
 
-    if (!added) /* new routing info*/
-    {
-        node->routing_count++;
-        node->my_routing = realloc(node->my_routing, node->routing_count * sizeof(RoutingInfo));
-        node->my_routing[node->routing_count - 1].og_id = new_route->og_id;
-        node->my_routing[node->routing_count - 1].responds_got = 1;
-        node->my_routing[node->routing_count - 1].routes_got = 1;
-        node->my_routing[node->routing_count - 1].routes = malloc(sizeof(Route) * new_route->route_len);
-        node->my_routing[node->routing_count - 1].routes->og_id = new_route->og_id;
-        node->my_routing[node->routing_count - 1].routes->route_len = new_route->route_len;
-        node->my_routing[node->routing_count - 1].routes[0].nodes_ids = (int32_t *)malloc(new_route->route_len * sizeof(int32_t));
-        memcpy(node->my_routing[node->routing_count - 1].routes->nodes_ids, new_route->nodes_ids, sizeof(int32_t) * new_route->route_len);
-        added = true;
-    }
-
-    return true;
+    return false;
 }
 
 RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id)
@@ -354,12 +345,16 @@ RoutingInfo *NODE_get_route_info(Node *node, int32_t route_id)
         perror("NULL args in NODE_get_route_info");
         return NULL;
     }
-    for (int i = 0; i < node->routing_count; i++)
+
+    for (int i = 0; i < node->routing_count; i++) // serach for exsiting og_id
     {
-        if (node->my_routing[i].og_id = route_id || node->my_routing[i].og_id == 0)
-        {                                         // og_id = 0 in the case that the route is a cli command!
-            node->my_routing[i].og_id = route_id; //change the 0 to the real og_id
-            return &node->my_routing[i];          //return RoutingInfo
+        for (int j = 0; j < node->neighbors_count; j++)
+        {
+            if (node->my_routing[i].discover_ids[j] == route_id || node->my_routing[i].og_id == 0)
+            {                                         // og_id = 0 in the case that the route is a cli command!
+                node->my_routing[i].og_id = route_id; //change the 0 to the real og_id
+                return &node->my_routing[i];          //return RoutingInfo
+            }
         }
     }
     return NULL;

@@ -22,15 +22,21 @@ int32_t Neighbor_get_index_by_ip_port(Neighbor *neghibors, int32_t len, int32_t 
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(struct sockaddr_in);
     int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size); //get the ip & port from a socket
+    if (res == -1)
+    {
+        perror("failed in getpeername\n");
+        goto Exit;
+    }
     int32_t port = ntohs(addr.sin_port);
 
     for (int i = 0; i < len; i++)
     {
-        if (neghibors[i].ip_addr == addr.sin_addr.s_addr && neghibors[i].port == ntohs(addr.sin_port))
+        if (neghibors[i].ip_addr == addr.sin_addr.s_addr && neghibors[i].port == port)
         {
             return i;
         }
     }
+Exit:
     return -1;
 }
 

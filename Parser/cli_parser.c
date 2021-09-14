@@ -79,16 +79,15 @@ bool check_setid(Node *node, char *string)
         perror("NULL ARGS IN setid");
         goto Exit;
     }
-    bool success = false;
     char *chr = strtok(NULL, COMMA); //ignore the function
     int32_t id = atoi(chr);
     if (NULL != strtok(NULL, COMMA))
     {
-        return false;
+        goto Exit;
     }
     return NODE_setid(node, id);
 Exit:
-    return success;
+    return false;
 }
 bool check_connect(Node *node, char *string)
 {

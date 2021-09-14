@@ -281,10 +281,10 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
     {
         perror("NULL args in parse_ack");
     }
+    printf("nack\n");
     bool ret;
-    RoutingInfo *ri;
     int32_t id_for = ((int32_t *)msg->payload)[0]; //the msg_id nack is responding to
-    for (int i = 0; i < node->neighbors_count; i++)
+    for (int i = 0; i < node->routing_count; i++)
     {
         for (int j = 0; j < node->neighbors_count; j++)
         {
@@ -303,14 +303,14 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
                     }
                     else
                     { //I got all the discover responses... choose route and send a route message.
-                        Route *r;
-                        ret = NODE_choose_route(node->my_routing[i].routes, node->my_routing[i].routes_got, r);
+                        Route r;
+                        ret = NODE_choose_route(node->my_routing[i].routes, node->my_routing[i].routes_got, &r);
                         if (!ret)
                         {
                             perror("Failed in NODE_choose_route\n");
                             return false;
                         }
-                        ret = send_route_message(dst_sock, node->id, dst_node_id, r);
+                        ret = send_route_message(dst_sock, node->id, dst_node_id, &r);
                         if (!ret)
                         {
                             perror("Failed in send_route_message\n");
@@ -322,6 +322,7 @@ static bool parse_nack(Node *node, message *msg, int32_t fd)
             }
         }
     }
+    return false;
 }
 /**
  * Parse the connect message and add to myself a new Neighbor with the id from the msg.src_id
@@ -332,16 +333,20 @@ static bool parse_connect(Node *node, message *msg, int32_t fd)
     if (node == NULL || msg == NULL)
     {
         perror("NULL args in parse_ack");
-        return false;
+        goto Exit;
     }
     size_t new_neighbor_index = NODE_get_neighbor_index_by_fd(node, fd);
     if (new_neighbor_index < 0)
-        return false;
-
+        goto Exit;
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(struct sockaddr_in);
     int res = getpeername(fd, (struct sockaddr *)&addr, &addr_size); // get the ip and port from a socket
+    if (res == -1)
+        goto Exit;
     int32_t port = ntohs(addr.sin_port);
+
+    if (port < 0)
+        goto Exit;
 
     node->neighbors[new_neighbor_index].port = port; //Add neighbor fields
     node->neighbors[new_neighbor_index].id = msg->src_id;
@@ -351,6 +356,9 @@ static bool parse_connect(Node *node, message *msg, int32_t fd)
     printf("sent connect ack to (node id) %d\n", node->neighbors[new_neighbor_index].id);
 
     return true;
+Exit:
+    send_nack_message(fd, msg->src_id, node->id, msg->msg_id);
+    return false;
 }
 
 static bool parse_discover(Node *node, message *msg, short from_fd)
@@ -439,7 +447,7 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
     }
     SerializedRoute *serialized_route = (SerializedRoute *)msg->payload;
     Route route;
-    bool ret = ROUTE_deserialize(serialized_route, &route); // convert msg payload to Route struct
+    ROUTE_deserialize(serialized_route, &route); // convert msg payload to Route struct
     bool res = NODE_add_route(node, &route);
     if (!res)
     {
@@ -458,7 +466,7 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
         {
             //got all the route and nacks back
             //choose the best route
-            ret = NODE_choose_route(ri->routes, ri->routes_got, best_route);
+            bool ret = NODE_choose_route(ri->routes, ri->routes_got, best_route);
             if (!ret)
             {
                 perror("Failed in NODE_choose_route\n");
@@ -489,7 +497,6 @@ static bool parse_route(Node *node, message *msg, short from_fd, Route *best_rou
             perror("failed in send_route_message\n");
             return false;
         }
-        // printf("debug 2.2\n");
     }
     return true;
 }
@@ -505,6 +512,8 @@ static bool parse_send(Node *node, message *msg)
         printf("GOT: %s\n", msg->payload);
         return true;
     }
+
+    return false;
 }
 
 bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
@@ -512,6 +521,10 @@ bool message_parse(Node *node, char *buffer, size_t len, int32_t from_fd)
     if (len == 0)
     {
         bool ret = NODE_disconnect_neighbor(node, from_fd);
+        if (!ret)
+        {
+            perror("Failed in NODE_disconnect_neighbor\n");
+        }
     }
     if (node == NULL || buffer == NULL)
     {

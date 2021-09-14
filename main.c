@@ -4,10 +4,11 @@
 #include <signal.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include "Parser/cli_parser.h"
-#include "Reactor/select.h"
-#include "Configuration/configuration.h"
-#include "Handler/handler.h"
+#include "select.h"
+#include "handler.h"
+#include "cli_parser.h"
+#include "configuration.h"
+
 void clean(int temp)
 {
     close(LISTENING_FD);
